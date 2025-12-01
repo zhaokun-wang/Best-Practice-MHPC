@@ -21,7 +21,7 @@ module module_types
 
   public :: assignment(=)
 
-  !> @brief Reference state
+  !> @brief Reference state (Initial + boundary conditions)
   type reference_state
     !> Density
     real(wp), allocatable, dimension(:) :: density
@@ -40,13 +40,13 @@ module module_types
 
   !> @brief Atmospheric state to be evolved
   type atmospheric_state
-    !> Backing storage for data
+    !> Backing storage for data (first two entries are x and z directions, last one is the array containing dens, umom, wmom and rhot)
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
     !> Density
     real(wp), pointer, dimension(:,:) :: dens
-    !> Present horizontal position
+    !> Current horizontal velocity
     real(wp), pointer, dimension(:,:) :: umom
-    !> Present vertical position
+    !> Current vertical velocity
     real(wp), pointer, dimension(:,:) :: wmom
     !> Rho theta value
     real(wp), pointer, dimension(:,:) :: rhot
@@ -65,9 +65,9 @@ module module_types
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
     !> Density
     real(wp), pointer, dimension(:,:) :: dens
-    !> Horizontal position
+    !> Horizontal velocity
     real(wp), pointer, dimension(:,:) :: umom
-    !> Vertical position
+    !> Vertical velocity
     real(wp), pointer, dimension(:,:) :: wmom
     !> Rho theta value
     real(wp), pointer, dimension(:,:) :: rhot
@@ -83,9 +83,9 @@ module module_types
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
     !> Density
     real(wp), pointer, dimension(:,:) :: dens
-    !> Horizontal position
+    !> Horizontal velocity
     real(wp), pointer, dimension(:,:) :: umom
-    !> Vertical position
+    !> Vertical velocity
     real(wp), pointer, dimension(:,:) :: wmom
     real(wp), pointer, dimension(:,:) :: rhot
     contains
@@ -96,6 +96,7 @@ module module_types
     procedure, public :: ztend
   end type atmospheric_tendency
 
+  !> Interface implementing the assignment operator between atmospheric states
   interface assignment(=)
     module procedure state_equal_to_state
   end interface assignment(=)
@@ -156,6 +157,7 @@ module module_types
     class(atmospheric_tendency), intent(in) :: tend
     real(wp), intent(in) :: dt
     integer :: ll, k, i
+    !> Actual loop doing the update
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
@@ -184,29 +186,30 @@ module module_types
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
 
-    call atmostat%exchange_halo_x( )
+    call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
 
-    hv_coef = -hv_beta * dx / (16.0_wp*dt)
+    hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
     do k = 1, nz
       do i = 1, nx+1
         do ll = 1, NVARS
           do s = 1, STEN_SIZE
-            stencil(s) = atmostat%mem(i-hs-1+s,k,ll)
+            stencil(s) = atmostat%mem(i-hs-1+s,k,ll) !< Collecting neighbor values in the stencil
           end do
-          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &
+          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp & !< Compute fluxes with 4th-order scheme
                      + 7.0_wp * stencil(2)/12.0_wp &
                      + 7.0_wp * stencil(3)/12.0_wp &
                      - 1.0_wp * stencil(4)/12.0_wp
-          d3_vals(ll) = - 1.0_wp * stencil(1) &
+          d3_vals(ll) = - 1.0_wp * stencil(1) & !< Numerical dissipation prop to 3rd derivative
                         + 3.0_wp * stencil(2) &
                         - 3.0_wp * stencil(3) &
                         + 1.0_wp * stencil(4)
         end do
-        r = vals(I_DENS) + ref%density(k)
-        u = vals(I_UMOM) / r
-        w = vals(I_WMOM) / r
-        t = ( vals(I_RHOT) + ref%denstheta(k) ) / r
-        p = c0*(r*t)**cdocv
+        r = vals(I_DENS) + ref%density(k)  !< Total density
+        u = vals(I_UMOM) / r               !< Velocity in x
+        w = vals(I_WMOM) / r               !< Velocity in z
+        t = ( vals(I_RHOT) + ref%denstheta(k) ) / r   !< Temperature
+        p = c0*(r*t)**cdocv !< Equation of state, pressure
+        !> Physical fluxes + dissipation terms
         flux%dens(i,k) = r*u - hv_coef*d3_vals(I_DENS)
         flux%umom(i,k) = r*u*u+p - hv_coef*d3_vals(I_UMOM)
         flux%wmom(i,k) = r*u*w - hv_coef*d3_vals(I_WMOM)
@@ -216,6 +219,7 @@ module module_types
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
+          !> Compute the tendency in x through flux differences
           tendency%mem(i,k,ll) = &
               -( flux%mem(i+1,k,ll) - flux%mem(i,k,ll) ) / dx
         end do
@@ -242,33 +246,34 @@ module module_types
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
 
-    call atmostat%exchange_halo_z(ref)
+    call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
-    hv_coef = -hv_beta * dz / (16.0_wp*dt)
+    hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
     do k = 1, nz+1
       do i = 1, nx
         do ll = 1, NVARS
           do s = 1, STEN_SIZE
             stencil(s) = atmostat%mem(i,k-hs-1+s,ll)
           end do
-          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &
+          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &  !< Compute fluxes with 4th-order scheme
                      + 7.0_wp * stencil(2)/12.0_wp &
                      + 7.0_wp * stencil(3)/12.0_wp &
                      - 1.0_wp * stencil(4)/12.0_wp
-          d3_vals(ll) = - 1.0_wp * stencil(1) &
+          d3_vals(ll) = - 1.0_wp * stencil(1) &   !< Numerical dissipation prop to 3rd derivative
                         + 3.0_wp * stencil(2) &
                         - 3.0_wp * stencil(3) &
                         + 1.0_wp * stencil(4)
         end do
-        r = vals(I_DENS) + ref%idens(k)
-        u = vals(I_UMOM) / r
-        w = vals(I_WMOM) / r
-        t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r
-        p = c0*(r*t)**cdocv - ref%pressure(k)
+        r = vals(I_DENS) + ref%idens(k)  !< Total density
+        u = vals(I_UMOM) / r             !< Total velocity in x
+        w = vals(I_WMOM) / r             !< Total velocity in z
+        t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
+        p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
         if (k == 1 .or. k == nz+1) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
         end if
+        !> Physical fluxes + dissipation terms
         flux%dens(i,k) = r*w - hv_coef*d3_vals(I_DENS)
         flux%umom(i,k) = r*w*u - hv_coef*d3_vals(I_UMOM)
         flux%wmom(i,k) = r*w*w+p - hv_coef*d3_vals(I_WMOM)
@@ -279,6 +284,7 @@ module module_types
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
+          !> Compute the tendency in z through flux differences
           tendency%mem(i,k,ll) = &
               -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
           if (ll == I_WMOM) then
@@ -290,7 +296,7 @@ module module_types
   end subroutine ztend
 
 
-    !> @brief Exchanges halos along x
+    !> @brief Implements periodic boundary conditions along x (2 rows of halos on each side)
     !> @param[inout] s Atmospheric state whose halos should be exchanged
   subroutine exchange_halo_x(s)
     implicit none
@@ -306,7 +312,7 @@ module module_types
     end do
   end subroutine exchange_halo_x
 
-    !> @brief Exchanges halos along z
+    !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
     !> @param[inout] s Atmospheric state whose halos should be exchanged
     !> @param[in] ref Reference state
     subroutine exchange_halo_z(s,ref)
@@ -317,11 +323,13 @@ module module_types
     do ll = 1, NVARS
       do i = 1-hs,nx+hs
         if (ll == I_WMOM) then
+          !> Vertical velocities are set to 0
           s%mem(i,-1,ll) = 0.0_wp
           s%mem(i,0,ll) = 0.0_wp
           s%mem(i,nz+1,ll) = 0.0_wp
           s%mem(i,nz+2,ll) = 0.0_wp
         else if (ll == I_UMOM) then
+          !> Horizontal velocities on z boundaries are scaled depending on ref values
           s%mem(i,-1,ll)   = s%mem(i,1,ll) /  &
               ref%density(1) * ref%density(-1)
           s%mem(i,0,ll)    = s%mem(i,1,ll) /  &
@@ -331,6 +339,7 @@ module module_types
           s%mem(i,nz+2,ll) = s%mem(i,nz,ll) / &
               ref%density(nz) * ref%density(nz+2)
         else
+          !> Copying interior values into halos
           s%mem(i,-1,ll) = s%mem(i,1,ll)
           s%mem(i,0,ll) = s%mem(i,1,ll)
           s%mem(i,nz+1,ll) = s%mem(i,nz,ll)
