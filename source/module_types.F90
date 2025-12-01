@@ -1,3 +1,5 @@
+
+!> @brief Module containing object orientation to "satisfy the eye"
 module module_types
   use calculation_types
   use physical_constants
@@ -19,22 +21,34 @@ module module_types
 
   public :: assignment(=)
 
+  !> @brief Reference state
   type reference_state
+    !> Density
     real(wp), allocatable, dimension(:) :: density
+    !> Density * Theta
     real(wp), allocatable, dimension(:) :: denstheta
+    !> Initial density
     real(wp), allocatable, dimension(:) :: idens
+    !> Initial density * theta
     real(wp), allocatable, dimension(:) :: idenstheta
+    !> Pressure
     real(wp), allocatable, dimension(:) :: pressure
     contains
     procedure, public :: new_ref
     procedure, public :: del_ref
   end type reference_state
 
+  !> @brief Atmospheric state to be evolved
   type atmospheric_state
+    !> Backing storage for data
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
+    !> Density
     real(wp), pointer, dimension(:,:) :: dens
+    !> Present horizontal position
     real(wp), pointer, dimension(:,:) :: umom
+    !> Present vertical position
     real(wp), pointer, dimension(:,:) :: wmom
+    !> Rho theta value
     real(wp), pointer, dimension(:,:) :: rhot
     contains
     procedure, public :: new_state
@@ -45,11 +59,17 @@ module module_types
     procedure, public :: exchange_halo_z
   end type atmospheric_state
 
+  !> @brief Flux computed at volume interfaces
   type atmospheric_flux
+    !> Backing storage for flux data
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
+    !> Density
     real(wp), pointer, dimension(:,:) :: dens
+    !> Horizontal position
     real(wp), pointer, dimension(:,:) :: umom
+    !> Vertical position
     real(wp), pointer, dimension(:,:) :: wmom
+    !> Rho theta value
     real(wp), pointer, dimension(:,:) :: rhot
     contains
     procedure, public :: new_flux
@@ -57,10 +77,15 @@ module module_types
     procedure, public :: del_flux
   end type atmospheric_flux
 
+  !> @brief Tendency used to update the stat
   type atmospheric_tendency
+    !> Backing storage data for tendency
     real(wp), pointer, dimension(:,:,:) :: mem => null( )
+    !> Density
     real(wp), pointer, dimension(:,:) :: dens
+    !> Horizontal position
     real(wp), pointer, dimension(:,:) :: umom
+    !> Vertical position
     real(wp), pointer, dimension(:,:) :: wmom
     real(wp), pointer, dimension(:,:) :: rhot
     contains
@@ -77,10 +102,14 @@ module module_types
 
   contains
 
+    !> @brief Instantiates a new atmospheric state
+    !> @param[inout] atmo Atmospheric state
   subroutine new_state(atmo)
     implicit none
     class(atmospheric_state), intent(inout) :: atmo
+    !> If memory is already allocated, deallocate
     if ( associated(atmo%mem) ) deallocate(atmo%mem)
+    !> Allocate memory and set pointers
     allocate(atmo%mem(1-hs:nx+hs, 1-hs:nz+hs, NVARS))
     atmo%dens(1-hs:,1-hs:) => atmo%mem(:,:,I_DENS)
     atmo%umom(1-hs:,1-hs:) => atmo%mem(:,:,I_UMOM)
@@ -88,6 +117,9 @@ module module_types
     atmo%rhot(1-hs:,1-hs:) => atmo%mem(:,:,I_RHOT)
   end subroutine new_state
 
+    !> @brief Sets an existing atmospheric state to a given value
+    !> @param[inout] atmo Existing atmospheric state
+    !> @param[in] xval New value to be assigned to atmo
   subroutine set_state(atmo, xval)
     implicit none
     class(atmospheric_state), intent(inout) :: atmo
@@ -99,6 +131,8 @@ module module_types
     atmo%mem(:,:,:) = xval
   end subroutine set_state
 
+    !> @brief Deletes existing atmospheric state
+    !> @param[inout] atmo Existing atmospheric state to be deleted
   subroutine del_state(atmo)
     implicit none
     class(atmospheric_state), intent(inout) :: atmo
@@ -109,6 +143,12 @@ module module_types
     nullify(atmo%rhot)
   end subroutine del_state
 
+
+    !> @brief Evolve atmospheric state according to tendency and time step
+    !> param[in] so Current state to be evolve
+    !> param[inout] s2 Output evolved state
+    !> param[in] tend Tendency of the evolution
+    !> param[in] dt Evolution time step
   subroutine update(s2,s0,tend,dt)
     implicit none
     class(atmospheric_state), intent(inout) :: s2
@@ -125,6 +165,13 @@ module module_types
     end do
   end subroutine update
 
+    !> @brief Computes the atmospheric tendency along x
+    !> param[inout] tendency Atmospheric tendency
+    !> param[inout] flux Atmospheric flux
+    !> param[in] ref Reference atmospheric state
+    !> param[inout] atmostat Atmospheric state
+    !> param[in] dx Horizontal cell size
+    !> param[in] dt Time step
   subroutine xtend(tendency,flux,ref,atmostat,dx,dt)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tendency
@@ -176,6 +223,13 @@ module module_types
     end do
   end subroutine xtend
 
+    !> @brief Computes the atmospheric tendency along z
+    !> param[inout] tendency Atmospheric tendency
+    !> param[inout] flux Atmospheric flux
+    !> param[in] ref Reference atmospheric state
+    !> param[inout] atmostat Atmospheric state
+    !> param[in] dz Vertical cell size
+    !> param[in] dt Time step
   subroutine ztend(tendency,flux,ref,atmostat,dz,dt)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tendency
@@ -235,6 +289,9 @@ module module_types
     end do
   end subroutine ztend
 
+
+    !> @brief Exchanges halos along x
+    !> @param[inout] s Atmospheric state whose halos should be exchanged
   subroutine exchange_halo_x(s)
     implicit none
     class(atmospheric_state), intent(inout) :: s
@@ -249,7 +306,10 @@ module module_types
     end do
   end subroutine exchange_halo_x
 
-  subroutine exchange_halo_z(s,ref)
+    !> @brief Exchanges halos along z
+    !> @param[inout] s Atmospheric state whose halos should be exchanged
+    !> @param[in] ref Reference state
+    subroutine exchange_halo_z(s,ref)
     implicit none
     class(atmospheric_state), intent(inout) :: s
     class(reference_state), intent(in) :: ref
@@ -280,6 +340,8 @@ module module_types
     end do
   end subroutine exchange_halo_z
 
+    !> @brief Instantiates a new reference state
+    !> @param[inout] ref New reference state to be allocated memory to
   subroutine new_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
@@ -290,6 +352,8 @@ module module_types
     allocate(ref%pressure(nz+1))
   end subroutine new_ref
 
+    !> @brief Delete existing reference state
+    !> @param[inout] ref Reference state whose memory should be deallocated
   subroutine del_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
@@ -300,6 +364,8 @@ module module_types
     deallocate(ref%pressure)
   end subroutine del_ref
 
+    !> @brief Instantiates a new flux object
+    !> @param[inout] flux Flux object which should be initialized
   subroutine new_flux(flux)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
@@ -311,6 +377,9 @@ module module_types
     flux%rhot => flux%mem(:,:,I_RHOT)
   end subroutine new_flux
 
+    !> @brief Set an existing flux object to a given value
+    !> @param[inout] flux Flux object whose value should be reassigned
+    !> @param[int] xval New value to be assigned
   subroutine set_flux(flux, xval)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
@@ -322,6 +391,8 @@ module module_types
     flux%mem(:,:,:) = xval
   end subroutine set_flux
 
+    !> @brief Deallocate an existing flux object
+    !> @param[inout] flux Object which should be deallocated
   subroutine del_flux(flux)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
@@ -332,6 +403,8 @@ module module_types
     nullify(flux%rhot)
   end subroutine del_flux
 
+    !> @brief Allocate memory to a tendency object
+    !> @param[inout] tend New tendency object which should be initialized
   subroutine new_tendency(tend)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
@@ -343,6 +416,9 @@ module module_types
     tend%rhot => tend%mem(:,:,I_RHOT)
   end subroutine new_tendency
 
+    !> @brief Set an existing tendency object to a given value
+    !> @param[inout] tend Tendency object whose value should be reassigned
+    !> @param[int] xval New value to be assigned
   subroutine set_tendency(tend, xval)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
@@ -354,6 +430,8 @@ module module_types
     tend%mem(:,:,:) = xval
   end subroutine set_tendency
 
+    !> @brief Deallocate an existing tendency object
+    !> @param[inout] tend Object which should be deallocated
   subroutine del_tendency(tend)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
@@ -364,6 +442,9 @@ module module_types
     nullify(tend%rhot)
   end subroutine del_tendency
 
+    !> @brief Assigment operator for atmospheric states
+    !> @param[inout] x Atmospheric state to be assigned a new value to
+    !> @param[in] y Atmospheric state whose value is taken to be assigned
   subroutine state_equal_to_state(x,y)
     implicit none
     type(atmospheric_state), intent(inout) :: x
