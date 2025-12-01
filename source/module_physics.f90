@@ -64,6 +64,11 @@ module module_physics
 
     call oldstat%set_state(0.0_wp)
 
+    !$omp parallel default(none) &
+    !$omp shared(nx, nz, hs, dx, dz, i_beg, k_beg, nqpoints, qpoints, qweights, oldstat, newstat, ref, c0, cdocv) &
+    !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
+
+    !$omp do collapse(2)
     do k = 1-hs, nz+hs
       do i = 1-hs, nx+hs
         do kk = 1, nqpoints
@@ -83,9 +88,15 @@ module module_physics
         end do
       end do
     end do
+    !$omp end do
+
+    !$omp single
     newstat = oldstat
     ref%density(:) = 0.0_wp
     ref%denstheta(:) = 0.0_wp
+    !$omp end single
+
+    !$omp do
     do k = 1-hs, nz+hs
       do kk = 1, nqpoints
         z = (k_beg-1 + k-0.5_wp) * dz + (qpoints(kk)-0.5_wp)*dz
@@ -94,6 +105,9 @@ module module_physics
         ref%denstheta(k) = ref%denstheta(k) + hr*ht * qweights(kk)
       end do
     end do
+    !$omp end do
+
+    !$omp do
     do k = 1, nz+1
       z = (k_beg-1 + k-1) * dz
       call thermal(0.0_wp,z,r,u,w,t,hr,ht)
@@ -101,6 +115,9 @@ module module_physics
       ref%idenstheta(k) = hr*ht
       ref%pressure(k) = c0*(hr*ht)**cdocv
     end do
+    !$omp end do
+
+    !$omp end parallel
     write(stdout,*) 'MODEL STATUS INITIALIZED.'
   end subroutine init
 
@@ -259,6 +276,8 @@ module module_physics
     real(wp) :: r, u, w, th, p, t, ke, ie
     mass = 0.0_wp
     te = 0.0_wp
+
+    !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
     do k = 1, nz
       do i = 1, nx
         r = oldstat%dens(i,k) + ref%density(k)
@@ -273,6 +292,7 @@ module module_physics
         te = te + (ke + r*cv*t)*dx*dz
       end do
     end do
+    !$omp end parallel do
   end subroutine total_mass_energy
 
 end module module_physics

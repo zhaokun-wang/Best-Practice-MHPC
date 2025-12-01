@@ -86,6 +86,7 @@ module module_output
       real(wp), dimension(1) :: etimearr
 
       !put the variables from atmostat in the right array of I/O
+      !$omp parallel do private(k,i)
       do k = 1, nz
         do i = 1, nx
           dens(i,k) = atmostat%dens(i,k)

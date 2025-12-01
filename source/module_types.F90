@@ -191,6 +191,9 @@ module module_types
     call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
 
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
+
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz
       do i = 1, nx+1
         do ll = 1, NVARS
@@ -218,6 +221,9 @@ module module_types
         flux%rhot(i,k) = r*u*t - hv_coef*d3_vals(I_RHOT)
       end do
     end do
+    !$omp end parallel do
+
+    !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
@@ -227,6 +233,7 @@ module module_types
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine xtend
 
     !> @brief Computes the atmospheric tendency along z
@@ -251,6 +258,9 @@ module module_types
     call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
+
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz+1
       do i = 1, nx
         do ll = 1, NVARS
@@ -282,7 +292,9 @@ module module_types
         flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
       end do
     end do
+    !$omp end parallel do
 
+    !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
@@ -295,6 +307,7 @@ module module_types
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine ztend
 
 
@@ -304,6 +317,8 @@ module module_types
     implicit none
     class(atmospheric_state), intent(inout) :: s
     integer :: k, ll
+
+    !$omp parallel do collapse(2) default(shared) private(k, ll)
     do ll = 1, NVARS
       do k = 1, nz
         s%mem(-1,k,ll)   = s%mem(nx-1,k,ll)
@@ -312,6 +327,7 @@ module module_types
         s%mem(nx+2,k,ll) = s%mem(2,k,ll)
       end do
     end do
+    !$omp end parallel do
   end subroutine exchange_halo_x
 
     !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
@@ -322,6 +338,8 @@ module module_types
     class(atmospheric_state), intent(inout) :: s
     class(reference_state), intent(in) :: ref
     integer :: i, ll
+
+    !$omp parallel do collapse(2) default(shared) private(i, ll)
     do ll = 1, NVARS
       do i = 1-hs,nx+hs
         if (ll == I_WMOM) then
@@ -349,6 +367,7 @@ module module_types
         end if
       end do
     end do
+    !$omp end parallel do
   end subroutine exchange_halo_z
 
     !> @brief Instantiates a new reference state
