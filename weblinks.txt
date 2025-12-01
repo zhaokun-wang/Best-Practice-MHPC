@@ -1,0 +1,5 @@
+http://floating-point-gui.de/
+https://fortran-lang.org/learn/
+https://www.markdownguide.org/
+https://github.com/fortran-lang/fpm
+https://www.atomwitch.net/2022/04/02/cmake-fortran.html
