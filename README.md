@@ -5,8 +5,8 @@
 ## MILESTONES
 
 - [x] add documentation doxygen style
-- [ ] CMAKE **Z**
-- [ ] add openMP **E** TEST IT
+- [x] CMAKE **Z**
+- [x] add openMP **E** TEST IT
 - [ ] put on leonardo and do benchmarks for serial (1-2-4-8-16-32 nodes) **G**
 - [ ] MPI implementation (WHEN PUT A VARIABLE PUT IT ON PARALLEL IN MODULE PARAMETERS FILES)
 	- [ ] model.f90 init MPI (1D GRID, IMPLEMENT REST)
