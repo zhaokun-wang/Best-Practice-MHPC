@@ -158,6 +158,7 @@ module module_types
     real(wp), intent(in) :: dt
     integer :: ll, k, i
     !> Actual loop doing the update
+    !$omp parallel do collapse(2) default(shared) private(i)
     do ll = 1, NVARS
       do k = 1, nz
         do i = 1, nx
@@ -165,6 +166,7 @@ module module_types
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine update
 
     !> @brief Computes the atmospheric tendency along x
