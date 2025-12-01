@@ -65,7 +65,7 @@ module module_physics
     call oldstat%set_state(0.0_wp)
 
     !$omp parallel default(none) &
-    !$omp shared(nx, nz, hs, dx, dz, i_beg, k_beg, nqpoints, qpoints, qweights, oldstat, newstat, ref, c0, cdocv) &
+    !$omp shared(dx, dz, oldstat, newstat, ref) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
     !$omp do collapse(2)

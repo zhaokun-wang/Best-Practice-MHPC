@@ -33,6 +33,11 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # -------------------------------------------------
+# Find OpenMP
+# -------------------------------------------------
+find_package(OpenMP REQUIRED)
+
+# -------------------------------------------------
 # Your source files
 # -------------------------------------------------
 file(GLOB source_files source/*.f90 source/*.F90)
@@ -47,11 +52,10 @@ target_include_directories(model.x PRIVATE ${NETCDF_INCLUDE_DIR})
 # -------------------------------------------------
 # Compilation flags
 # -------------------------------------------------
-target_compile_options(model.x PRIVATE -Ofast -fPIC ${NETCDF_FFLAGS})
+target_compile_options(model.x PRIVATE -Ofast -fPIC ${NETCDF_FFLAGS} ${OpenMP_Fortran_FLAGS})
 
 # -------------------------------------------------
-# Link NetCDF
+# Link NetCDF & OpenMP
 # -------------------------------------------------
 target_link_directories(model.x PRIVATE ${NETCDF_LIB_DIR})
-target_link_libraries(model.x PRIVATE ${NETCDF_FLIBS})
-
+target_link_libraries(model.x PRIVATE ${NETCDF_FLIBS} ${OpenMP_Fortran_FLAGS})
