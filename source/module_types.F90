@@ -173,7 +173,7 @@ module module_types
     !> param[inout] tendency Atmospheric tendency
     !> param[inout] flux Atmospheric flux
     !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric state
+    !> param[inout] atmostat Atmospheric stategit c
     !> param[in] dx Horizontal cell size
     !> param[in] dt Time step
   subroutine xtend(tendency,flux,ref,atmostat,dx,dt)
