@@ -285,7 +285,7 @@ module module_types
         w = vals(I_WMOM) / r             !< Total velocity in z
         t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
         p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-        if ((k == 1 .and. rank == 0 ) .or. (k == nz_loc+1 .and. rank == 1 )) then
+        if ((k == 1 .and. rank == 0 ) .or. (k == nz_loc+1 .and. rank == size -1 )) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
         end if
@@ -347,14 +347,14 @@ module module_types
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
       do ll = 1, NVARS
           ! SENDRECV DOWNWARDS
-          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
-          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
+          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
           comm, MPI_STATUS_IGNORE, ierr &
           )
 
           ! SENDRECV UPWARDS
-          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE, next_rank, 1, &
-                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE, next_rank, 1, &
+          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
+                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
                   comm, MPI_STATUS_IGNORE, ierr &
                   )
       end do
