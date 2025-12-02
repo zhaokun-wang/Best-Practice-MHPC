@@ -50,7 +50,6 @@ program atmosphere_model
   ptime = int(sim_time/10.0)
 
   do while (etime < sim_time)
-
     !check case in which the last step to do to end is smaller thend set dt
     if (etime + dt > sim_time) dt = sim_time - etime
 
@@ -75,7 +74,6 @@ program atmosphere_model
       output_counter = output_counter - output_freq
       call write_record(oldstat,ref,etime)
     end if
-
   end do
 
   !******************************************************************************

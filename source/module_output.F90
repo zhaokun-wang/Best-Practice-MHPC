@@ -102,6 +102,7 @@ module module_output
       integer, dimension(1) :: st1, ct1
       integer, dimension(3) :: st3, ct3
       real(wp), dimension(1) :: etimearr
+      integer(8) :: t1, t2, rate
 
       !put the variables from atmostat in the right array of I/O
       !*** PARALLEL ***
@@ -123,14 +124,18 @@ module module_output
       !k_beg now I suppose is the point where is global starting of rank
       st3 = [ i_beg, k_beg, rec_out ]   !>cursor coordinate where starting writing
       ct3 = [ nx, nz_loc, 1 ]               !>define the dimension of the block where to write
+
+
       call ncwrap(nf90_put_var(ncid,dens_varid,dens,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,uwnd_varid,uwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,wwnd_varid,wwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,theta_varid,theta,st3,ct3), __LINE__)
 
+
       !writing the time
       !*** PARALLEL ***
       !only the rank 0 can do it (need only one time writing the time)
+
       st1 = [ rec_out ]
       ct1 = [ 1 ]
       etimearr(1) = etime
@@ -138,6 +143,7 @@ module module_output
 
       !update the receive file number
       rec_out = rec_out + 1
+
     end subroutine write_record
 
     !>
