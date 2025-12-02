@@ -9,9 +9,10 @@
 - [x] add openMP **E** TEST IT
 - [x] put on leonardo and do benchmarks for serial (1-2-4-8-16-32 nodes) **G**
 - [ ] MPI implementation (WHEN PUT A VARIABLE PUT IT ON PARALLEL IN MODULE PARAMETERS FILES)
-	- [ ] model.f90 init MPI (1D GRID, IMPLEMENT REST)
+	- [x] model.f90 init MPI (1D GRID, IMPLEMENT REST)
 		- rank
 		- size
+  		- ierr 	
 		- x_global (not needed)
 		- x_local  (not needed)
 		- z_global
