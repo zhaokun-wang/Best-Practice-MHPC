@@ -63,8 +63,10 @@ program atmosphere_model
 
     !execution percentage write
     if ( mod(etime,ptime) < dt ) then
-      pctime = (etime/sim_time)*100.0_wp
-      write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      if (rank == 0) then
+        pctime = (etime/sim_time)*100.0_wp
+        write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      end if
     end if
 
     !updating the actual time and the otput counter
@@ -85,16 +87,20 @@ program atmosphere_model
   call total_mass_energy(mass1,te1)
   !call close_output( )
 
-  write(stdout,*) "----------------- Atmosphere check ----------------"
-  write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
-  write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
-  write(stdout,*) "---------------------------------------------------"
+  if (rank == 0) then
+    write(stdout,*) "----------------- Atmosphere check ----------------"
+    write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
+    write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
+    write(stdout,*) "---------------------------------------------------"
+  endif
 
   call finalize()
   call system_clock(t2,rate)
 
-  write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
-  write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  if (rank ==  0) then
+    write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
+    write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  end if
 
   call MPI_Finalize(ierr)
 
