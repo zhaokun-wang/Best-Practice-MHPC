@@ -160,7 +160,7 @@ module module_types
     real(wp), intent(in) :: dt
     integer :: ll, k, i
     !> Actual loop doing the update
-    !$omp parallel do collapse(2) default(shared) private(i)
+    !$omp parallel do collapse(2) default(shared) private(i,k,ll)
     do ll = 1, NVARS
       do k = 1, nz_loc
         do i = 1, nx
