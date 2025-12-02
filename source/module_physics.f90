@@ -313,6 +313,7 @@ module module_physics
     integer :: i, k, request_mass, request_te                                 ! parallel
     real(wp) :: r, u, w, th, p, t, ke, ie
     integer :: ierr2
+    integer(8) :: rate
     mass = 0.0_wp
     te = 0.0_wp
 
@@ -335,9 +336,11 @@ module module_physics
     !$omp end parallel do
     !$acc end parallel loop
 
+    call system_clock(t_comm_start)
     CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr2)
     CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr2)
-
+    call system_clock(t_comm_end, rate)
+    T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
   end subroutine total_mass_energy
 
 end module module_physics

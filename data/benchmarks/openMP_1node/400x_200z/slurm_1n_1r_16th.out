@@ -1,0 +1,26 @@
+ Rank            0  of            1
+ SIMPLE ATMOSPHERIC MODEL STARTING.
+ INITIALIZING MODEL STATUS.
+ nx         :          400
+ nz         :          200
+ dx         :    50.000000000000000     
+ dz         :    50.000000000000000     
+ dt         :   0.16666666666666666     
+ final time :    1000.0000000000000     
+ MODEL STATUS INITIALIZED.
+ TIME PERCENT :  0%
+ TIME PERCENT : 10%
+ TIME PERCENT : 20%
+ TIME PERCENT : 30%
+ TIME PERCENT : 40%
+ TIME PERCENT : 50%
+ TIME PERCENT : 60%
+ TIME PERCENT : 70%
+ TIME PERCENT : 80%
+ TIME PERCENT : 90%
+ ----------------- Atmosphere check ----------------
+ Fractional Delta Mass  :    0.0000000000000000     
+ Fractional Delta Energy:    1.1896204747655668E-004
+ ---------------------------------------------------
+ SIMPLE ATMOSPHERIC MODEL RUN COMPLETED.
+ USED CPU TIME:    14.425313521000000     

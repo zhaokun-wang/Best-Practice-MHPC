@@ -42,6 +42,7 @@ execute_process(
 # Remove OpenMP finding section
 # The original: find_package(OpenMP REQUIRED)
 # -------------------------------------------------
+find_package(OpenMP REQUIRED)
 
 # -------------------------------------------------
 # Find MPI (Fortran)
@@ -82,6 +83,7 @@ target_link_directories(model.x PRIVATE ${NETCDF_LIB_DIR})
 # OpenACC linking is handled by the -acc flag and nvfortran
 # -------------------------------------------------
 target_link_libraries(model.x PRIVATE
-    ${NETCDF_FLIBS}
-    MPI::MPI_Fortran
+        ${NETCDF_FLIBS}
+        ${OpenMP_Fortran_FLAGS}
+        MPI::MPI_Fortran
 )
