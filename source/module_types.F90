@@ -9,6 +9,7 @@ module module_types
   use legendre_quadrature
   use dimensions
   use iodir
+  use mpi
 
   implicit none
 
@@ -111,7 +112,8 @@ module module_types
     !> If memory is already allocated, deallocate
     if ( associated(atmo%mem) ) deallocate(atmo%mem)
     !> Allocate memory and set pointers
-    allocate(atmo%mem(1-hs:nx+hs, 1-hs:nz+hs, NVARS))
+    !PARALLEL
+    allocate(atmo%mem(1-hs:nx+hs, 1-hs:nz_loc+hs, NVARS))
     atmo%dens(1-hs:,1-hs:) => atmo%mem(:,:,I_DENS)
     atmo%umom(1-hs:,1-hs:) => atmo%mem(:,:,I_UMOM)
     atmo%wmom(1-hs:,1-hs:) => atmo%mem(:,:,I_WMOM)
@@ -158,20 +160,22 @@ module module_types
     real(wp), intent(in) :: dt
     integer :: ll, k, i
     !> Actual loop doing the update
+    !$omp parallel do collapse(2) default(shared) private(i,k,ll)
     do ll = 1, NVARS
-      do k = 1, nz
+      do k = 1, nz_loc
         do i = 1, nx
           s2%mem(i,k,ll) = s0%mem(i,k,ll) + dt * tend%mem(i,k,ll)
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine update
 
     !> @brief Computes the atmospheric tendency along x
     !> param[inout] tendency Atmospheric tendency
     !> param[inout] flux Atmospheric flux
     !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric state
+    !> param[inout] atmostat Atmospheric stategit c
     !> param[in] dx Horizontal cell size
     !> param[in] dt Time step
   subroutine xtend(tendency,flux,ref,atmostat,dx,dt)
@@ -188,8 +192,12 @@ module module_types
 
     call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
 
+
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
-    do k = 1, nz
+
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
+    do k = 1, nz_loc
       do i = 1, nx+1
         do ll = 1, NVARS
           do s = 1, STEN_SIZE
@@ -216,8 +224,11 @@ module module_types
         flux%rhot(i,k) = r*u*t - hv_coef*d3_vals(I_RHOT)
       end do
     end do
+    !$omp end parallel do
+
+    !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
-      do k = 1, nz
+      do k = 1, nz_loc
         do i = 1, nx
           !> Compute the tendency in x through flux differences
           tendency%mem(i,k,ll) = &
@@ -225,6 +236,7 @@ module module_types
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine xtend
 
     !> @brief Computes the atmospheric tendency along z
@@ -246,10 +258,14 @@ module module_types
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
 
+
     call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
-    do k = 1, nz+1
+
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
+    do k = 1, nz_loc+1
       do i = 1, nx
         do ll = 1, NVARS
           do s = 1, STEN_SIZE
@@ -269,7 +285,7 @@ module module_types
         w = vals(I_WMOM) / r             !< Total velocity in z
         t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
         p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-        if (k == 1 .or. k == nz+1) then
+        if ((k == 1 .and. rank == 0 ) .or. (k == nz_loc+1 .and. rank == size -1 )) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
         end if
@@ -280,9 +296,11 @@ module module_types
         flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
       end do
     end do
+    !$omp end parallel do
 
+    !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
-      do k = 1, nz
+      do k = 1, nz_loc
         do i = 1, nx
           !> Compute the tendency in z through flux differences
           tendency%mem(i,k,ll) = &
@@ -293,6 +311,7 @@ module module_types
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine ztend
 
 
@@ -302,14 +321,17 @@ module module_types
     implicit none
     class(atmospheric_state), intent(inout) :: s
     integer :: k, ll
+
+    !$omp parallel do collapse(2) default(shared) private(k, ll)
     do ll = 1, NVARS
-      do k = 1, nz
+      do k = 1, nz_loc
         s%mem(-1,k,ll)   = s%mem(nx-1,k,ll)
         s%mem(0,k,ll)    = s%mem(nx,k,ll)
         s%mem(nx+1,k,ll) = s%mem(1,k,ll)
         s%mem(nx+2,k,ll) = s%mem(2,k,ll)
       end do
     end do
+    !$omp end parallel do
   end subroutine exchange_halo_x
 
     !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
@@ -320,33 +342,78 @@ module module_types
     class(atmospheric_state), intent(inout) :: s
     class(reference_state), intent(in) :: ref
     integer :: i, ll
+    integer :: send_count = 2 * (nx + 2 * hs)
+
+    !PARALLEL COMMUNICATION DONE AT THE BEGINNING
+      do ll = 1, NVARS
+          ! SENDRECV DOWNWARDS
+          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+          comm, MPI_STATUS_IGNORE, ierr &
+          )
+
+          ! SENDRECV UPWARDS
+          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
+                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
+                  comm, MPI_STATUS_IGNORE, ierr &
+                  )
+      end do
+
+
+
+    !> FIRST BOUNDARY UPDATE
+    if (rank == 0) then
+    !$omp parallel do collapse(2) default(shared) private(i, ll)
     do ll = 1, NVARS
       do i = 1-hs,nx+hs
         if (ll == I_WMOM) then
           !> Vertical velocities are set to 0
           s%mem(i,-1,ll) = 0.0_wp
           s%mem(i,0,ll) = 0.0_wp
-          s%mem(i,nz+1,ll) = 0.0_wp
-          s%mem(i,nz+2,ll) = 0.0_wp
         else if (ll == I_UMOM) then
           !> Horizontal velocities on z boundaries are scaled depending on ref values
           s%mem(i,-1,ll)   = s%mem(i,1,ll) /  &
               ref%density(1) * ref%density(-1)
           s%mem(i,0,ll)    = s%mem(i,1,ll) /  &
               ref%density(1) * ref%density(0)
-          s%mem(i,nz+1,ll) = s%mem(i,nz,ll) / &
-              ref%density(nz) * ref%density(nz+1)
-          s%mem(i,nz+2,ll) = s%mem(i,nz,ll) / &
-              ref%density(nz) * ref%density(nz+2)
         else
           !> Copying interior values into halos
           s%mem(i,-1,ll) = s%mem(i,1,ll)
           s%mem(i,0,ll) = s%mem(i,1,ll)
-          s%mem(i,nz+1,ll) = s%mem(i,nz,ll)
-          s%mem(i,nz+2,ll) = s%mem(i,nz,ll)
         end if
       end do
     end do
+    !$omp end parallel do
+    end if
+
+    !> LAST BOUNDARY UPDATE
+    if (rank == size - 1) then
+      !$omp parallel do collapse(2) default(shared) private(i, ll)
+      do ll = 1, NVARS
+        do i = 1-hs,nx+hs
+          if (ll == I_WMOM) then
+            !> Vertical velocities are set to 0
+            s%mem(i,nz_loc+1,ll) = 0.0_wp
+            s%mem(i,nz_loc+2,ll) = 0.0_wp
+          else if (ll == I_UMOM) then
+            !> Horizontal velocities on z boundaries are scaled depending on ref values
+            s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll) / &
+                    ref%density(nz_loc) * ref%density(nz_loc+1)
+            s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll) / &
+                    ref%density(nz_loc) * ref%density(nz_loc+2)
+          else
+            !> Copying interior values into halos
+            s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll)
+            s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll)
+          end if
+        end do
+      end do
+      !$omp end parallel do
+    end if
+
+      !Sync of ranks
+      call MPI_BARRIER(comm, ierr)
+
   end subroutine exchange_halo_z
 
     !> @brief Instantiates a new reference state
@@ -354,11 +421,11 @@ module module_types
   subroutine new_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
-    allocate(ref%density(1-hs:nz+hs))
-    allocate(ref%denstheta(1-hs:nz+hs))
-    allocate(ref%idens(nz+1))
-    allocate(ref%idenstheta(nz+1))
-    allocate(ref%pressure(nz+1))
+    allocate(ref%density(1-hs:nz_loc+hs))
+    allocate(ref%denstheta(1-hs:nz_loc+hs))
+    allocate(ref%idens(nz_loc+1))
+    allocate(ref%idenstheta(nz_loc+1))
+    allocate(ref%pressure(nz_loc+1))
   end subroutine new_ref
 
     !> @brief Delete existing reference state
@@ -379,7 +446,7 @@ module module_types
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
     if ( associated(flux%mem) ) deallocate(flux%mem)
-    allocate(flux%mem(1:nx+1, 1:nz+1,NVARS))
+    allocate(flux%mem(1:nx+1, 1:nz_loc+1,NVARS))
     flux%dens => flux%mem(:,:,I_DENS)
     flux%umom => flux%mem(:,:,I_UMOM)
     flux%wmom => flux%mem(:,:,I_WMOM)
@@ -418,7 +485,7 @@ module module_types
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
     if ( associated(tend%mem) ) deallocate(tend%mem)
-    allocate(tend%mem(nx, nz,NVARS))
+    allocate(tend%mem(nx, nz_loc,NVARS))
     tend%dens => tend%mem(:,:,I_DENS)
     tend%umom => tend%mem(:,:,I_UMOM)
     tend%wmom => tend%mem(:,:,I_WMOM)

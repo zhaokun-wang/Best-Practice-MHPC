@@ -8,6 +8,7 @@ module module_physics
   use dimensions
   use iodir
   use module_types
+  use mpi
 
   implicit none
 
@@ -29,6 +30,12 @@ module module_physics
 
   contains
 
+  !> @brief initialize division of the grid, time, and computing all the data which is needed
+  !! for further calculation
+  !!
+  !! @param[out]      etime                 overall runtime
+  !! @param[out]      output_counter        times of output
+  !! @param[out]      dt                    time step of evolve
   subroutine init(etime,output_counter,dt)
     implicit none
     real(wp), intent(out) :: etime, output_counter, dt
@@ -38,27 +45,52 @@ module module_physics
     dx = xlen / nx
     dz = zlen / nz
 
+    dt = min(dx,dz) / max_speed * cfl
+    etime = 0.0_wp
+    output_counter = 0.0_wp
+    ! start parallel
+    if ( rank == 0 ) then                                                     ! parallel
+      write(stdout,*) 'INITIALIZING MODEL STATUS.'
+      write(stdout,*) 'nx         : ', nx
+      write(stdout,*) 'nz         : ', nz
+      write(stdout,*) 'dx         : ', dx
+      write(stdout,*) 'dz         : ', dz
+      write(stdout,*) 'dt         : ', dt
+      write(stdout,*) 'final time : ', sim_time
+    end if                                                                    ! parallel
+    ! end parallel
+
+    ! start parallel
+    z_global = rank * (nz / size) + hs + 1;                                   ! parallel
+    nz_loc = nz / size;                                                       ! parallel
+    if ( rank < mod(nz, size) ) then                                            ! parallel
+      nz_loc = nz_loc + 1                                                     ! parallel
+      z_global = z_global + rank                                              ! parallel
+    else                                                                      ! parallel
+      z_global = z_global + mod(nz, size);                                        ! parallel
+    end if                                                                    ! parallel
+    
+    k_beg = z_global - hs                                                     ! parallel
+    if ( rank == 0 ) then
+      z_global = z_global - hs
+    end if
+
     call oldstat%new_state( )
+    call oldstat%set_state(0.0_wp)
+
+
     call newstat%new_state( )
     call flux%new_flux( )
     call tend%new_tendency( )
     call ref%new_ref( )
 
-    dt = min(dx,dz) / max_speed * cfl
-    etime = 0.0_wp
-    output_counter = 0.0_wp
+    
+    !$omp parallel default(none) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg, i_beg) &
+    !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
-    write(stdout,*) 'INITIALIZING MODEL STATUS.'
-    write(stdout,*) 'nx         : ', nx
-    write(stdout,*) 'nz         : ', nz
-    write(stdout,*) 'dx         : ', dx
-    write(stdout,*) 'dz         : ', dz
-    write(stdout,*) 'dt         : ', dt
-    write(stdout,*) 'final time : ', sim_time
-
-    call oldstat%set_state(0.0_wp)
-
-    do k = 1-hs, nz+hs
+    !$omp do collapse(2)
+    do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
         do kk = 1, nqpoints
           do ii = 1, nqpoints
@@ -77,10 +109,17 @@ module module_physics
         end do
       end do
     end do
+    !$omp end do
+
+    !$omp single
     newstat = oldstat
     ref%density(:) = 0.0_wp
     ref%denstheta(:) = 0.0_wp
-    do k = 1-hs, nz+hs
+    !$omp end single
+
+
+    !$omp do
+    do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
         z = (k_beg-1 + k-0.5_wp) * dz + (qpoints(kk)-0.5_wp)*dz
         call thermal(0.0_wp,z,r,u,w,t,hr,ht)
@@ -88,16 +127,37 @@ module module_physics
         ref%denstheta(k) = ref%denstheta(k) + hr*ht * qweights(kk)
       end do
     end do
-    do k = 1, nz+1
+    !$omp end do
+
+
+    !$omp do
+    do k = 1, nz_loc+1
       z = (k_beg-1 + k-1) * dz
       call thermal(0.0_wp,z,r,u,w,t,hr,ht)
       ref%idens(k) = hr
       ref%idenstheta(k) = hr*ht
       ref%pressure(k) = c0*(hr*ht)**cdocv
     end do
-    write(stdout,*) 'MODEL STATUS INITIALIZED.'
+    !$omp end do
+    !$omp end parallel
+
+
+    if ( rank == 0 ) then ! parallel
+      write(stdout,*) 'MODEL STATUS INITIALIZED.'
+    end if  ! parallel
+    ! end parallel
+
   end subroutine init
 
+  !> @brief applying a rungekutta method to evolve 
+  !! in three difference time step and two different directions, 
+  !! each time switch the turn of the calculation on two directions
+  !!
+  !! @param[inout]    s0                    old status
+  !! @param[inout]    s1                    new status
+  !! @param[inout]    fl                    flux
+  !! @param[inout]    tend                  partial derivative of parameters
+  !! @param[in]       dt                    time step of evolve
   subroutine rungekutta(s0,s1,fl,tend,dt)
     implicit none
     type(atmospheric_state), intent(inout) :: s0
@@ -131,6 +191,16 @@ module module_physics
 
   ! Semi-discretized step in time:
   ! s2 = s0 + dt * rhs(s1)
+
+  !> @brief calculate the derivative on given direction 
+  !!
+  !! @param[in]       s0                    old status
+  !! @param[inout]    s1                    new status
+  !! @param[inout]    s2                    status to store the updated result
+  !! @param[inout]    fl                    flux
+  !! @param[inout]    tend                  partial derivative of parameters
+  !! @param[in]       dt                    time step of evolve
+  !! @param[in]       dir                   direction to update
   subroutine step(s0, s1, s2, dt, dir, fl, tend)
     implicit none
     type(atmospheric_state), intent(in) :: s0
@@ -148,6 +218,16 @@ module module_physics
     call s2%update(s0,tend,dt)
   end subroutine step
 
+  !> @brief calculate the constants and perturbations for the given position
+  !!
+  !! @param[in]       x                     x position
+  !! @param[in]       z                     z position
+  !! @param[out]      r                     perturbation term 1
+  !! @param[out]      u                     perturbation term 2
+  !! @param[out]      w                     perturbation term 3
+  !! @param[out]      t                     perturbation term 4
+  !! @param[out]      hr                    constant density for the given height z
+  !! @param[out]      ht                    constant temprature for the given height z
   subroutine thermal(x,z,r,u,w,t,hr,ht)
     implicit none
     real(wp), intent(in) :: x, z
@@ -161,6 +241,11 @@ module module_physics
     t = t + ellipse(x,z,3.0_wp,hxlen,p1,p1,p1)
   end subroutine thermal
 
+  !> @brief calculate the constants for the given height
+  !!
+  !! @param[in]       z                     z position
+  !! @param[out]      r                     constant density for the given height z
+  !! @param[out]      t                     constant temprature for the given height z  
   subroutine hydrostatic_const_theta(z,r,t)
     implicit none
     real(wp), intent(in) :: z
@@ -173,6 +258,15 @@ module module_physics
     r = rt / t
   end subroutine hydrostatic_const_theta
 
+  !> @brief calculate the perturbations for the given position
+  !!
+  !! @param[in]       x                     x position
+  !! @param[in]       z                     z position
+  !! @param[in]       amp                   amplitude
+  !! @param[in]       x0                    x position of the center of the ellipse to calculate the distance from for generating perturbation
+  !! @param[in]       z0                    z position of the center of the ellipse to calculate the distance from for generating perturbation
+  !! @param[in]       x1                    semi axis length 1 for the ellipse
+  !! @param[in]       z1                    semi axis length 2 for the ellipse
   elemental function ellipse(x,z,amp,x0,z0,x1,z1) result(val)
     implicit none
     real(wp), intent(in) :: x, z
@@ -189,6 +283,7 @@ module module_physics
     end if
   end function ellipse
 
+  !> @brief call the delete function for all the used types
   subroutine finalize()
     implicit none
     call oldstat%del_state( )
@@ -198,14 +293,22 @@ module module_physics
     call ref%del_ref( )
   end subroutine finalize
 
-  subroutine total_mass_energy(mass,te)
+  !> @brief calculate the total mass and energy for the whole grid
+  !!
+  !! @param[out]      mass                  mass
+  !! @param[out]      te                    energy
+  subroutine total_mass_energy(total_mass,total_te) 
     implicit none
-    real(wp), intent(out) :: mass, te
-    integer :: i, k
+    real(wp) :: mass, te                                                      ! parallel
+    real(wp), intent(out) :: total_mass, total_te                             ! parallel
+    integer :: i, k, request_mass, request_te                                 ! parallel
     real(wp) :: r, u, w, th, p, t, ke, ie
+    integer :: ierr2
     mass = 0.0_wp
     te = 0.0_wp
-    do k = 1, nz
+
+    !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
+    do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx
         r = oldstat%dens(i,k) + ref%density(k)
         u = oldstat%umom(i,k) / r
@@ -219,6 +322,11 @@ module module_physics
         te = te + (ke + r*cv*t)*dx*dz
       end do
     end do
+    !$omp end parallel do
+
+    CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr2)
+    CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr2)
+
   end subroutine total_mass_energy
 
 end module module_physics
