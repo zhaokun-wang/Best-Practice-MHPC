@@ -273,7 +273,6 @@ module module_types
 
     !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
     !$acc copyout(flux, vals, d3_vals)
-
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc+1
@@ -382,6 +381,7 @@ module module_types
       end do
       call system_clock(t_comm_end,rate)
       T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
+
 
     !> FIRST BOUNDARY UPDATE
     if (rank == 0) then
