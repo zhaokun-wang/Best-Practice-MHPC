@@ -38,6 +38,8 @@ module module_output
 
       !the dimension id fot the grid
       integer :: t_dimid, x_dimid, z_dimid
+      integer :: status_nc
+      logical :: is_parallel
 
       !allocate the arrayy of the 4 variables
       !**** PARALLEL **** array now have the local dimension for the MPI rank
@@ -50,7 +52,8 @@ module module_output
       !! call ncwrap(nf90_create('output.nc',nf90_clobber,ncid), __LINE__)
       !**** PARALLEL ****
       !create the file to be write in parallel
-      call ncwrap(nf90_create_par('output.nc',nf90_clobber, comm, MPI_INFO_NULL, ncid), __LINE__)
+
+      call ncwrap(nf90_create_par('output.nc', ior(nf90_clobber, nf90_netcdf4), comm, MPI_INFO_NULL, ncid), __LINE__)
 
       !definitions of dimensions of the grid per step, ATTENTION: time _unlimited because variable in sim
       !nf90_def_dim(id_file, <label>, dimension of grid for that axes, id_grid_direction)
@@ -76,7 +79,7 @@ module module_output
       !*** PARALLEL ***
       !say to netCDF that all the variables have a collective acces, not indipendent
       !to write in parallel in all EXCEPT TIME
-      call ncwrap(nf90_var_par_access(ncid, t_varid, nf90_independent), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, t_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, dens_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, uwnd_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, wwnd_varid, nf90_collective), __LINE__)
@@ -99,10 +102,15 @@ module module_output
       integer, dimension(1) :: st1, ct1
       integer, dimension(3) :: st3, ct3
       real(wp), dimension(1) :: etimearr
+      integer(8) :: t1, t2, rate
 
       !put the variables from atmostat in the right array of I/O
       !*** PARALLEL ***
       !now we fill the variables with nz_loc as dimension in z
+
+
+      !$acc parallel loop collapse(2) copyin(atmostat, ref%density, ref%denstheta) copy(dens) copyout(uwnd, wwnd, theta)
+
       !$omp parallel do collapse(2) private(k,i)
       do k = 1, nz_loc
         do i = 1, nx
@@ -113,6 +121,9 @@ module module_output
               (ref%density(k) + dens(i,k)) - ref%denstheta(k)/ref%density(k)
         end do
       end do
+      !$omp end parallel do
+      !$acc end parallel loop
+
 
 
       !Writing part
@@ -120,23 +131,26 @@ module module_output
       !k_beg now I suppose is the point where is global starting of rank
       st3 = [ i_beg, k_beg, rec_out ]   !>cursor coordinate where starting writing
       ct3 = [ nx, nz_loc, 1 ]               !>define the dimension of the block where to write
+
+
       call ncwrap(nf90_put_var(ncid,dens_varid,dens,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,uwnd_varid,uwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,wwnd_varid,wwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,theta_varid,theta,st3,ct3), __LINE__)
 
+
       !writing the time
       !*** PARALLEL ***
       !only the rank 0 can do it (need only one time writing the time)
-      if (rank == 0) then
-        st1 = [ rec_out ]
-        ct1 = [ 1 ]
-        etimearr(1) = etime
-        call ncwrap(nf90_put_var(ncid, t_varid, etimearr, start=st1, count=ct1), __LINE__)
-      end if
+
+      st1 = [ rec_out ]
+      ct1 = [ 1 ]
+      etimearr(1) = etime
+      call ncwrap(nf90_put_var(ncid, t_varid, etimearr, start=st1, count=ct1), __LINE__)
 
       !update the receive file number
       rec_out = rec_out + 1
+
     end subroutine write_record
 
     !>

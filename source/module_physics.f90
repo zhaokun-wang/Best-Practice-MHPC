@@ -84,11 +84,14 @@ module module_physics
     call tend%new_tendency( )
     call ref%new_ref( )
 
-    
+
+
+
     !$omp parallel default(none) &
-    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg, i_beg) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
+    !$acc parallel loop collapse(2) copy(oldstat)
     !$omp do collapse(2)
     do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
@@ -110,14 +113,16 @@ module module_physics
       end do
     end do
     !$omp end do
+    !$acc end parallel loop
 
-    !$omp single
+!$omp single
     newstat = oldstat
     ref%density(:) = 0.0_wp
     ref%denstheta(:) = 0.0_wp
-    !$omp end single
+!$omp end single
 
 
+    !$acc parallel loop copy(ref%density, ref%denstheta)
     !$omp do
     do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
@@ -128,8 +133,10 @@ module module_physics
       end do
     end do
     !$omp end do
+    !$acc end parallel loop
 
 
+    !$acc parallel loop copyout(ref%idens, ref%idenstheta, ref%pressure) 
     !$omp do
     do k = 1, nz_loc+1
       z = (k_beg-1 + k-1) * dz
@@ -139,6 +146,8 @@ module module_physics
       ref%pressure(k) = c0*(hr*ht)**cdocv
     end do
     !$omp end do
+    !$acc end parallel loop
+
     !$omp end parallel
 
 
@@ -307,6 +316,7 @@ module module_physics
     mass = 0.0_wp
     te = 0.0_wp
 
+    !$acc parallel loop reduction(+:mass, te) copyin(oldstat, ref%density, ref%denstheta)
     !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
     do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx
@@ -323,6 +333,7 @@ module module_physics
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
 
     CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr2)
     CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr2)

@@ -160,6 +160,8 @@ module module_types
     real(wp), intent(in) :: dt
     integer :: ll, k, i
     !> Actual loop doing the update
+
+    !$acc parallel loop collapse(2) copyin(s0%mem, tend%mem) copyout(s2%mem)
     !$omp parallel do collapse(2) default(shared) private(i,k,ll)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -169,6 +171,7 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
   end subroutine update
 
     !> @brief Computes the atmospheric tendency along x
@@ -195,6 +198,8 @@ module module_types
 
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
+    !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
+    !$acc copyout(flux, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc
@@ -225,7 +230,9 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
 
+    !$acc parallel loop collapse(2) copyin(flux%mem) copyout(tendency%mem)
     !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -237,6 +244,7 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
   end subroutine xtend
 
     !> @brief Computes the atmospheric tendency along z
@@ -263,6 +271,9 @@ module module_types
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
+    !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
+    !$acc copyout(flux, vals, d3_vals)
+
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc+1
@@ -285,6 +296,7 @@ module module_types
         w = vals(I_WMOM) / r             !< Total velocity in z
         t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
         p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
+
         if ((k == 1 .and. rank == 0 ) .or. (k == nz_loc+1 .and. rank == size -1 )) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
@@ -297,7 +309,9 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
 
+    !$acc parallel loop collapse(2) copyout(tendency%mem) copy(tendency%wmom) copyin(atmostat%dens, flux%mem)
     !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -312,6 +326,7 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
   end subroutine ztend
 
 
@@ -322,6 +337,7 @@ module module_types
     class(atmospheric_state), intent(inout) :: s
     integer :: k, ll
 
+    !$acc parallel loop collapse(2) copy(s%mem)
     !$omp parallel do collapse(2) default(shared) private(k, ll)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -332,6 +348,8 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
+
   end subroutine exchange_halo_x
 
     !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
@@ -345,7 +363,9 @@ module module_types
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
+    !$acc data copy(s%mem)
       do ll = 1, NVARS
+        !$acc host_data use_device(s%mem)
           ! SENDRECV DOWNWARDS
           call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
           s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
@@ -357,12 +377,13 @@ module module_types
                   s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
                   comm, MPI_STATUS_IGNORE, ierr &
                   )
+        !$acc end host_data
       end do
-
 
 
     !> FIRST BOUNDARY UPDATE
     if (rank == 0) then
+      !$acc parallel loop collapse(2)
     !$omp parallel do collapse(2) default(shared) private(i, ll)
     do ll = 1, NVARS
       do i = 1-hs,nx+hs
@@ -384,10 +405,12 @@ module module_types
       end do
     end do
     !$omp end parallel do
+    !$acc end parallel loop
     end if
 
     !> LAST BOUNDARY UPDATE
     if (rank == size - 1) then
+      !$acc parallel loop collapse(2)
       !$omp parallel do collapse(2) default(shared) private(i, ll)
       do ll = 1, NVARS
         do i = 1-hs,nx+hs
@@ -408,11 +431,14 @@ module module_types
           end if
         end do
       end do
+      !$acc end parallel loop
       !$omp end parallel do
     end if
 
+    !$acc end data
+
       !Sync of ranks
-      call MPI_BARRIER(comm, ierr)
+     ! call MPI_BARRIER(comm, ierr)
 
   end subroutine exchange_halo_z
 
