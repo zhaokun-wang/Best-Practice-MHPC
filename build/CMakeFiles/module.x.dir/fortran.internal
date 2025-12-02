@@ -1,0 +1,13 @@
+# The fortran modules provided by this target.
+provides
+ calculation_types.mod
+ dimensions.mod
+ indexing.mod
+ iodir.mod
+ legendre_quadrature.mod
+ module_output.mod
+ module_physics.mod
+ module_types.mod
+ parallel_parameters.mod
+ physical_constants.mod
+ physical_parameters.mod

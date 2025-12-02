@@ -175,7 +175,7 @@ module module_types
     !> param[inout] tendency Atmospheric tendency
     !> param[inout] flux Atmospheric flux
     !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric state
+    !> param[inout] atmostat Atmospheric stategit c
     !> param[in] dx Horizontal cell size
     !> param[in] dt Time step
   subroutine xtend(tendency,flux,ref,atmostat,dx,dt)
@@ -191,6 +191,7 @@ module module_types
     real(wp), dimension(NVARS) :: d3_vals, vals
 
     call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
+
 
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
@@ -344,7 +345,6 @@ module module_types
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-
       do ll = 1, NVARS
           ! SENDRECV DOWNWARDS
           call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &

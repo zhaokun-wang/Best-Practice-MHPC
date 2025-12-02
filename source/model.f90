@@ -39,21 +39,19 @@ program atmosphere_model
   !Optional printing of ranks
   print *, "Rank ", rank, " of ", size
 
-
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
-  print *, "hi"
   call init(etime,output_counter,dt)                    !>initialize old state and new state
-  print *, "hi"
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
-  call create_output( )                                 !>create the .nc for the output storing
-  call write_record(oldstat,ref,etime)                  !>write the first record
+  !call create_output( )                                 !>create the .nc for the output storing
+  !call write_record(oldstat,ref,etime)                  !>write the first record
 
   !*** timing ***
   call system_clock(t1)
 
   !**************************** SIMULATION CYCLE BLOCK ***************************
   ptime = int(sim_time/10.0)
+
   do while (etime < sim_time)
 
     !check case in which the last step to do to end is smaller thend set dt
@@ -85,7 +83,7 @@ program atmosphere_model
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
-  call close_output( )
+  !call close_output( )
 
   write(stdout,*) "----------------- Atmosphere check ----------------"
   write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0

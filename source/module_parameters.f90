@@ -106,7 +106,7 @@ end module iodir
 module parallel_parameters
   implicit none
   public
-  integer, parameter :: i_beg = 1
+  integer, parameter :: i_beg=1
   integer :: k_beg
   integer, parameter :: hs = 2
   integer :: ierr, rank, size, comm, prev_rank, next_rank !< Initialized in model.f90
