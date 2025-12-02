@@ -5,11 +5,12 @@
 
 module module_output
   use calculation_types, only : wp, iowp
-  use parallel_parameters, only : i_beg, k_beg
+  use parallel_parameters, only : i_beg, k_beg, nz_loc, comm, rank, size, rest, base !**** PARALLEL ****
   use dimensions, only : nx, nz
   use module_types, only : atmospheric_state, reference_state
   use iodir, only : stderr
   use netcdf
+  use mpi
 
   implicit none
 
@@ -39,13 +40,17 @@ module module_output
       integer :: t_dimid, x_dimid, z_dimid
 
       !allocate the arrayy of the 4 variables
-      allocate(dens(nx,nz))
-      allocate(uwnd(nx,nz))
-      allocate(wwnd(nx,nz))
-      allocate(theta(nx,nz))
+      !**** PARALLEL **** array now have the local dimension for the MPI rank
+      allocate(dens(nx,nz_loc))
+      allocate(uwnd(nx,nz_loc))
+      allocate(wwnd(nx,nz_loc))
+      allocate(theta(nx,nz_loc))
 
       !create the gile output.nc, overwrite it (_clobber) if exist, from now id file is in ncid
-      call ncwrap(nf90_create('output.nc',nf90_clobber,ncid), __LINE__)
+      !! call ncwrap(nf90_create('output.nc',nf90_clobber,ncid), __LINE__)
+      !**** PARALLEL ****
+      !create the file to be write in parallel
+      call ncwrap(nf90_create_par('output.nc',nf90_clobber, comm, MPI_INFO_NULL, ncid), __LINE__)
 
       !definitions of dimensions of the grid per step, ATTENTION: time _unlimited because variable in sim
       !nf90_def_dim(id_file, <label>, dimension of grid for that axes, id_grid_direction)
@@ -67,6 +72,16 @@ module module_output
 
       !close definitions area, set rec_out for the number of printing file
       call ncwrap(nf90_enddef(ncid), __LINE__)
+
+      !*** PARALLEL ***
+      !say to netCDF that all the variables have a collective acces, not indipendent
+      !to write in parallel in all EXCEPT TIME
+      call ncwrap(nf90_var_par_access(ncid, t_varid, nf90_independent), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, dens_varid, nf90_collective), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, uwnd_varid, nf90_collective), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, wwnd_varid, nf90_collective), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, theta_varid, nf90_collective), __LINE__)
+
       rec_out = 1
     end subroutine create_output
 
@@ -86,7 +101,10 @@ module module_output
       real(wp), dimension(1) :: etimearr
 
       !put the variables from atmostat in the right array of I/O
-      do k = 1, nz
+      !*** PARALLEL ***
+      !now we fill the variables with nz_loc as dimension in z
+      !$omp parallel do collapse(2) private(k,i)
+      do k = 1, nz_loc
         do i = 1, nx
           dens(i,k) = atmostat%dens(i,k)
           uwnd(i,k) = atmostat%umom(i,k)/(ref%density(k)+dens(i,k))
@@ -98,18 +116,24 @@ module module_output
 
 
       !Writing part
-      st3 = [ i_beg, k_beg, rec_out ]   !>cursor coordinate where starting writing (1x, 1k, time)
-      ct3 = [ nx, nz, 1 ]               !>define the dimension of the block where to write
+      !*** PARALLEL ***
+      !k_beg now I suppose is the point where is global starting of rank
+      st3 = [ i_beg, k_beg, rec_out ]   !>cursor coordinate where starting writing
+      ct3 = [ nx, nz_loc, 1 ]               !>define the dimension of the block where to write
       call ncwrap(nf90_put_var(ncid,dens_varid,dens,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,uwnd_varid,uwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,wwnd_varid,wwnd,st3,ct3), __LINE__)
       call ncwrap(nf90_put_var(ncid,theta_varid,theta,st3,ct3), __LINE__)
 
       !writing the time
-      st1 = [ rec_out ]
-      ct1 = [ 1 ]
-      etimearr(1) = etime
-      call ncwrap(nf90_put_var(ncid,t_varid,etimearr,st1,ct1), __LINE__)
+      !*** PARALLEL ***
+      !only the rank 0 can do it (need only one time writing the time)
+      if (rank == 0) then
+        st1 = [ rec_out ]
+        ct1 = [ 1 ]
+        etimearr(1) = etime
+        call ncwrap(nf90_put_var(ncid, t_varid, etimearr, start=st1, count=ct1), __LINE__)
+      end if
 
       !update the receive file number
       rec_out = rec_out + 1

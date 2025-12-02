@@ -12,6 +12,7 @@
 module calculation_types
   use netcdf, only : nf90_real, nf90_double
   use iso_fortran_env
+  use mpi
   implicit none
   public
   integer, parameter :: wp = real64
@@ -105,9 +106,11 @@ end module iodir
 module parallel_parameters
   implicit none
   public
-  integer, parameter :: i_beg = 1
-  integer, parameter :: k_beg = 1
+  integer, parameter :: i_beg=1
+  integer :: k_beg
   integer, parameter :: hs = 2
+  integer :: ierr, rank, size, comm, prev_rank, next_rank !< Initialized in model.f90
+  integer :: z_local, z_global, nz_loc, base, rest !< Initialized in init
 end module parallel_parameters
 
 !>

@@ -12,6 +12,8 @@ program atmosphere_model
   use module_output, only : create_output, write_record, close_output
   use dimensions , only : sim_time, output_freq
   use iodir, only : stdout
+  use mpi
+  use parallel_parameters
   implicit none
 
   !**** Variables declaration area ****
@@ -23,18 +25,33 @@ program atmosphere_model
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
 
+  !Parallel init
+  call MPI_Init(ierr)
+  comm = MPI_COMM_WORLD
+  !Rank and Size
+  call MPI_Comm_rank(comm, rank, ierr)
+  call MPI_Comm_size(comm, size, ierr)
+
+  !Prev and Next ranks
+  prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
+  next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
+
+  !Optional printing of ranks
+  print *, "Rank ", rank, " of ", size
+
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
   call init(etime,output_counter,dt)                    !>initialize old state and new state
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
-  call create_output( )                                 !>create the .nc for the output storing
-  call write_record(oldstat,ref,etime)                  !>write the first record
+  !call create_output( )                                 !>create the .nc for the output storing
+  !call write_record(oldstat,ref,etime)                  !>write the first record
 
   !*** timing ***
   call system_clock(t1)
 
   !**************************** SIMULATION CYCLE BLOCK ***************************
   ptime = int(sim_time/10.0)
+
   do while (etime < sim_time)
 
     !check case in which the last step to do to end is smaller thend set dt
@@ -57,7 +74,7 @@ program atmosphere_model
     !printing area
     if (output_counter >= output_freq) then
       output_counter = output_counter - output_freq
-      call write_record(oldstat,ref,etime)
+      !call write_record(oldstat,ref,etime)
     end if
 
   end do
@@ -66,7 +83,7 @@ program atmosphere_model
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
-  call close_output( )
+  !call close_output( )
 
   write(stdout,*) "----------------- Atmosphere check ----------------"
   write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
@@ -78,5 +95,7 @@ program atmosphere_model
 
   write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
   write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+
+  call MPI_Finalize(ierr)
 
 end program atmosphere_model
