@@ -110,7 +110,7 @@ module parallel_parameters
   integer, parameter :: k_beg = 1
   integer, parameter :: hs = 2
   integer :: ierr, rank, size, comm !< Initialized in model.f90
-  integer :: z_local, z_global, nz_loc !< Initialized in init
+  integer :: z_local, z_global, nz_loc, base, rest !< Initialized in init
 end module parallel_parameters
 
 !>
