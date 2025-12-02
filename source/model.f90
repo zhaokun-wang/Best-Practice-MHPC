@@ -74,7 +74,7 @@ program atmosphere_model
     !printing area
     if (output_counter >= output_freq) then
       output_counter = output_counter - output_freq
-      call write_record(oldstat,ref,etime)
+      !call write_record(oldstat,ref,etime)
     end if
 
   end do
