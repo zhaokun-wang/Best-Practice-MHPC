@@ -73,4 +73,3 @@ target_link_libraries(model.x PRIVATE
         ${NETCDF_FLIBS}
         ${OpenMP_Fortran_FLAGS}
         MPI::MPI_Fortran
-)

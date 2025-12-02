@@ -69,7 +69,6 @@ module module_physics
     call oldstat%set_state(0.0_wp)
 
     ! start parallel
-
     z_global = rank * (nz / size) + hs + 1;                                   ! parallel
     nz_loc = nz / size;                                                       ! parallel
     if ( rank < mod(nz, size) ) then                                            ! parallel
@@ -144,6 +143,7 @@ module module_physics
       write(stdout,*) 'MODEL STATUS INITIALIZED.'
     end if  ! parallel
     ! end parallel
+
   end subroutine init
 
   !> @brief applying a rungekutta method to evolve 
