@@ -107,6 +107,10 @@ module module_output
       !put the variables from atmostat in the right array of I/O
       !*** PARALLEL ***
       !now we fill the variables with nz_loc as dimension in z
+
+
+      !$acc data copyin(atmostat, ref) copy(dens)
+      !$acc parallel loop collapse(2)
       !$omp parallel do collapse(2) private(k,i)
       do k = 1, nz_loc
         do i = 1, nx
@@ -117,6 +121,10 @@ module module_output
               (ref%density(k) + dens(i,k)) - ref%denstheta(k)/ref%density(k)
         end do
       end do
+      !$omp end do
+      !$acc end parallel loop
+      !$acc end data
+
 
 
       !Writing part
