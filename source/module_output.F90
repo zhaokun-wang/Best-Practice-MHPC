@@ -38,6 +38,8 @@ module module_output
 
       !the dimension id fot the grid
       integer :: t_dimid, x_dimid, z_dimid
+      integer :: status_nc
+      logical :: is_parallel
 
       !allocate the arrayy of the 4 variables
       !**** PARALLEL **** array now have the local dimension for the MPI rank
@@ -50,7 +52,8 @@ module module_output
       !! call ncwrap(nf90_create('output.nc',nf90_clobber,ncid), __LINE__)
       !**** PARALLEL ****
       !create the file to be write in parallel
-      call ncwrap(nf90_create_par('output.nc',nf90_clobber, comm, MPI_INFO_NULL, ncid), __LINE__)
+
+      call ncwrap(nf90_create_par('output.nc', ior(nf90_clobber, nf90_netcdf4), comm, MPI_INFO_NULL, ncid), __LINE__)
 
       !definitions of dimensions of the grid per step, ATTENTION: time _unlimited because variable in sim
       !nf90_def_dim(id_file, <label>, dimension of grid for that axes, id_grid_direction)
