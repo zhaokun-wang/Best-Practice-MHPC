@@ -7,13 +7,13 @@
 - [x] add documentation doxygen style
 - [x] CMAKE **Z**
 - [x] add openMP **E** TEST IT
-- [ ] put on leonardo and do benchmarks for serial (1-2-4-8-16-32 nodes) **G**
+- [x] put on leonardo and do benchmarks for serial (1-2-4-8-16-32 nodes) **G**
 - [ ] MPI implementation (WHEN PUT A VARIABLE PUT IT ON PARALLEL IN MODULE PARAMETERS FILES)
 	- [ ] model.f90 init MPI (1D GRID, IMPLEMENT REST)
 		- rank
 		- size
-		- x_global
-		- x_local
+		- x_global (not needed)
+		- x_local  (not needed)
 		- z_global
 		- z_local
 		- nz_loc (MEMORY ALONG X IS CONTIGOUS)
