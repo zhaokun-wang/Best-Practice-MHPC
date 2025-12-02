@@ -257,6 +257,7 @@ module module_types
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
 
+
     call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil

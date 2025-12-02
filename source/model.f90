@@ -41,10 +41,11 @@ program atmosphere_model
   print *, "Rank ", rank, " of ", size
 
 
-
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
+  print *, "hi"
   call init(etime,output_counter,dt)                    !>initialize old state and new state
+  print *, "hi"
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
   call create_output( )                                 !>create the .nc for the output storing
   call write_record(oldstat,ref,etime)                  !>write the first record

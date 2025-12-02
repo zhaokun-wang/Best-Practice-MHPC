@@ -69,7 +69,7 @@ module module_physics
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
     !$omp do collapse(2)
-    do k = 1-hs, nz+hs
+    do k = 1-hs, nz_loc+hs  !parallel
       do i = 1-hs, nx+hs
         do kk = 1, nqpoints
           do ii = 1, nqpoints
