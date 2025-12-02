@@ -15,16 +15,7 @@
   <component name="ChangeListManager">
     <list default="true" id="5fc13686-75ac-4f93-806f-c389760a899a" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeCache.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeCache.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/CMakeDirectoryInformation.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/CMakeDirectoryInformation.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/TargetDirectories.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/TargetDirectories.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/model.f90" beforeDir="false" afterPath="$PROJECT_DIR$/source/model.f90" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/source/module_output.F90" beforeDir="false" afterPath="$PROJECT_DIR$/source/module_output.F90" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/source/module_physics.f90" beforeDir="false" afterPath="$PROJECT_DIR$/source/module_physics.f90" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,7 +67,7 @@
       <updated>1761600182135</updated>
       <workItem from="1761600186066" duration="36000" />
       <workItem from="1764591398536" duration="16802000" />
-      <workItem from="1764685489100" duration="1100000" />
+      <workItem from="1764685489100" duration="2359000" />
     </task>
     <servers />
   </component>

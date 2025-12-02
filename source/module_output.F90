@@ -79,7 +79,7 @@ module module_output
       !*** PARALLEL ***
       !say to netCDF that all the variables have a collective acces, not indipendent
       !to write in parallel in all EXCEPT TIME
-      call ncwrap(nf90_var_par_access(ncid, t_varid, nf90_independent), __LINE__)
+      call ncwrap(nf90_var_par_access(ncid, t_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, dens_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, uwnd_varid, nf90_collective), __LINE__)
       call ncwrap(nf90_var_par_access(ncid, wwnd_varid, nf90_collective), __LINE__)
@@ -131,12 +131,10 @@ module module_output
       !writing the time
       !*** PARALLEL ***
       !only the rank 0 can do it (need only one time writing the time)
-      if (rank == 0) then
-        st1 = [ rec_out ]
-        ct1 = [ 1 ]
-        etimearr(1) = etime
-        call ncwrap(nf90_put_var(ncid, t_varid, etimearr, start=st1, count=ct1), __LINE__)
-      end if
+      st1 = [ rec_out ]
+      ct1 = [ 1 ]
+      etimearr(1) = etime
+      call ncwrap(nf90_put_var(ncid, t_varid, etimearr, start=st1, count=ct1), __LINE__)
 
       !update the receive file number
       rec_out = rec_out + 1
