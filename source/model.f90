@@ -101,7 +101,7 @@ program atmosphere_model
     call system_clock(t_end,rate)
     T_output = T_output + dble(t_end-t_start)/dble(rate)
   !******************************************************************************
-
+  end do
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
   call close_output( )
@@ -113,17 +113,17 @@ program atmosphere_model
     write(stdout,*) "---------------------------------------------------"
   end if
   call finalize()
-  call system_clock(t2)
+  call system_clock(t2, rate)
 
   if (rank == 0) then
     write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
     write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
   endif
 
-  CALL MPI_Reduce(T_communicate, T_communicate_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-  CALL MPI_Reduce(T_compute, T_compute_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr)
-  CALL MPI_Reduce(T_init, T_init_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-  CALL MPI_Reduce(T_output, T_output_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr)  
+  CALL MPI_Reduce(T_communicate, T_communicate_total, 1, MPI_REAL, MPI_SUM, 0, comm, ierr)
+  CALL MPI_Reduce(T_compute, T_compute_total, 1, MPI_REAL, MPI_SUM, 0, comm , ierr)
+  CALL MPI_Reduce(T_init, T_init_total, 1, MPI_REAL, MPI_SUM, 0, comm, ierr)
+  CALL MPI_Reduce(T_output, T_output_total, 1, MPI_REAL, MPI_SUM, 0, comm , ierr)  
   T_output_total = T_output_total / size
   T_communicate_total = T_communicate_total / size
   T_compute_total = T_compute_total / size
