@@ -86,7 +86,7 @@ module module_physics
 
     
     !$omp parallel default(none) &
-    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg, i_beg) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
     !$omp do collapse(2)

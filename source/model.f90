@@ -36,6 +36,7 @@ program atmosphere_model
   !Prev and Next ranks
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
+
   call system_clock(t_end,rate)
   T_communicate = 0
   T_communicate = T_communicate + dble(t_end-t_start)/dble(rate)
@@ -77,8 +78,10 @@ program atmosphere_model
 
     !execution percentage write
     if ( mod(etime,ptime) < dt ) then
-      pctime = (etime/sim_time)*100.0_wp
-      write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      if (rank == 0) then
+        pctime = (etime/sim_time)*100.0_wp
+        write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      end if
     end if
 
     !updating the actual time and the otput counter
@@ -94,26 +97,28 @@ program atmosphere_model
       output_counter = output_counter - output_freq
       call write_record(oldstat,ref,etime)
     end if
+
     call system_clock(t_end,rate)
     T_output = T_output + dble(t_end-t_start)/dble(rate)
-  end do
-  T_compute = T_compute - T_communicate
   !******************************************************************************
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
   call close_output( )
 
-  write(stdout,*) "----------------- Atmosphere check ----------------"
-  write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
-  write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
-  write(stdout,*) "---------------------------------------------------"
-
+  if (rank == 0) then
+    write(stdout,*) "----------------- Atmosphere check ----------------"
+    write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
+    write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
+    write(stdout,*) "---------------------------------------------------"
+  end if
   call finalize()
   call system_clock(t2)
 
-  write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
-  write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  if (rank == 0) then
+    write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
+    write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  endif
 
   CALL MPI_Reduce(T_communicate, T_communicate_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
   CALL MPI_Reduce(T_compute, T_compute_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr)
