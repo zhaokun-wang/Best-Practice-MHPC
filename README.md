@@ -24,7 +24,7 @@
 	- [x] module_types.F90 MPI (exchange halos, trend)
 
 - [x] TEST MPI
-- [ ] Timer
+- [x] Timer
 - [ ] Benchmarks MPI with and without threads
 - [ ] Benchmarks MPI with and with threads
 - [ ] openACC
