@@ -26,7 +26,7 @@
 - [x] TEST MPI
 - [x] Timer
 - [ ] Benchmarks MPI with and without threads
-- [ ] add namelist for fortran parameters
+- [x] add namelist for fortran parameters
 - [ ] openACC
 - [ ] CMAKE should have option for using threads (compile with openMP) or openACC (nvfortran)
 - [ ] Benchmarks MPI with openacc

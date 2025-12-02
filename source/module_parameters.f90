@@ -145,10 +145,29 @@ module dimensions
   use calculation_types, only : wp
   use physical_parameters, only : zlen, xlen
   use indexing
+  use parallel_parameters, only : rank
   implicit none
   public
-  integer , parameter :: nx = 100
-  integer , parameter :: nz = int(nx * zlen/xlen)
-  real(wp), parameter :: sim_time = 1000.0_wp
-  real(wp), parameter :: output_freq = 10.0_wp
+  integer, parameter :: nx = 100
+  integer, parameter :: nz = int(nx * zlen/xlen)
+  real(wp) :: sim_time = 1000.0_wp
+  real(wp) :: output_freq = 10.0_wp
+  namelist /input_params/ sim_time, output_freq
+
+contains
+
+  subroutine init_dimensions(filename)
+    character(len=*), intent(in) :: filename
+    integer :: unit_in, ierr
+    open(newunit=unit_in, file=filename, status='old', action='read', iostat=ierr)
+    if (ierr /= 0) then
+      if (rank == 0) then
+      write(*,*) "Impossible read the file, remaining with the default ", filename
+      end if
+      return
+    end if
+    read(unit_in, nml=input_params)
+    close(unit_in)
+  end subroutine init_dimensions
+
 end module dimensions

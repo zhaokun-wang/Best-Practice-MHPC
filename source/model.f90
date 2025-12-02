@@ -10,7 +10,7 @@ program atmosphere_model
   use module_physics, only : init, finalize
   use module_physics, only : rungekutta, total_mass_energy
   use module_output, only : create_output, write_record, close_output
-  use dimensions , only : sim_time, output_freq
+  use dimensions , only : sim_time, output_freq, init_dimensions
   use iodir, only : stdout
   use mpi
   use parallel_parameters
@@ -33,6 +33,9 @@ program atmosphere_model
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, size, ierr)
 
+  !setting the parameters of sim
+  call init_dimensions('input.nml')
+
   !Prev and Next ranks
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
@@ -40,11 +43,11 @@ program atmosphere_model
   call system_clock(t_end,rate)
   T_communicate = 0
   T_communicate = T_communicate + dble(t_end-t_start)/dble(rate)
-  !Optional printing of ranks
-  print *, "Rank ", rank, " of ", size
 
   !**** Initialization region ****
-  write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
+  if (rank == 0) then
+    write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
+  end if
   T_init = 0
   T_compute = 0
   T_output = 0
