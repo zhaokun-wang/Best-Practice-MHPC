@@ -27,12 +27,20 @@ program atmosphere_model
 
   !Parallel init
   call MPI_Init(ierr)
+  comm = MPI_COMM_WORLD
 
+  !Rank and Size
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, size, ierr)
 
+  !Prev and Next ranks
+  prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
+  next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
+
   !Optional printing of ranks
   print *, "Rank ", rank, " of ", size
+
+
 
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
