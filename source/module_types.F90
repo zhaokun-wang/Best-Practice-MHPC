@@ -284,7 +284,7 @@ module module_types
         w = vals(I_WMOM) / r             !< Total velocity in z
         t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
         p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-        if (k == 1 .or. k == nz+1) then
+        if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
         end if
@@ -341,24 +341,26 @@ module module_types
     class(atmospheric_state), intent(inout) :: s
     class(reference_state), intent(in) :: ref
     integer :: i, ll
+    integer(8) :: rate
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
+      call system_clock(t_comm_start)
       do ll = 1, NVARS
           ! SENDRECV DOWNWARDS
-          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
-          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
+          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
           comm, MPI_STATUS_IGNORE, ierr &
           )
 
           ! SENDRECV UPWARDS
-          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE, next_rank, 1, &
-                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE, next_rank, 1, &
+          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE, next_rank, 0, &
+                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE, next_rank, 0, &
                   comm, MPI_STATUS_IGNORE, ierr &
                   )
       end do
-
-
+      call system_clock(t_comm_end,rate)
+      T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
 
     !> FIRST BOUNDARY UPDATE
     if (rank == 0) then

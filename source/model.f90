@@ -29,21 +29,35 @@ program atmosphere_model
   call MPI_Init(ierr)
   comm = MPI_COMM_WORLD
   !Rank and Size
+  call system_clock(t_start)
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, size, ierr)
 
   !Prev and Next ranks
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
-
+  call system_clock(t_end,rate)
+  T_communicate = 0
+  T_communicate = T_communicate + dble(t_end-t_start)/dble(rate)
   !Optional printing of ranks
   print *, "Rank ", rank, " of ", size
 
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
+  T_init = 0
+  T_compute = 0
+  T_output = 0
+  
+  call system_clock(t_start)
   call init(etime,output_counter,dt)                    !>initialize old state and new state
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
-  !call create_output( )                                 !>create the .nc for the output storing
+  call system_clock(t_end,rate)
+  T_init = T_init + dble(t_end-t_start)/dble(rate)
+  
+  call system_clock(t_start)  
+  call create_output( )                                 !>create the .nc for the output storing
+  call system_clock(t_end,rate)
+  T_output = T_output + dble(t_end-t_start)/dble(rate)
   !call write_record(oldstat,ref,etime)                  !>write the first record
 
   !*** timing ***
@@ -53,7 +67,7 @@ program atmosphere_model
   ptime = int(sim_time/10.0)
 
   do while (etime < sim_time)
-
+    call system_clock(t_start)
     !check case in which the last step to do to end is smaller thend set dt
     if (etime + dt > sim_time) dt = sim_time - etime
 
@@ -71,19 +85,24 @@ program atmosphere_model
     etime = etime + dt
     output_counter = output_counter + dt
 
+    call system_clock(t_end,rate)
+    T_compute = T_compute + dble(t_end-t_start)/dble(rate)
+
     !printing area
+    call system_clock(t_start)
     if (output_counter >= output_freq) then
       output_counter = output_counter - output_freq
-      !call write_record(oldstat,ref,etime)
+      call write_record(oldstat,ref,etime)
     end if
-
+    call system_clock(t_end,rate)
+    T_output = T_output + dble(t_end-t_start)/dble(rate)
   end do
-
+  T_compute = T_compute - T_communicate
   !******************************************************************************
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
-  !call close_output( )
+  call close_output( )
 
   write(stdout,*) "----------------- Atmosphere check ----------------"
   write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
@@ -91,10 +110,25 @@ program atmosphere_model
   write(stdout,*) "---------------------------------------------------"
 
   call finalize()
-  call system_clock(t2,rate)
+  call system_clock(t2)
 
   write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
   write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+
+  CALL MPI_Reduce(T_communicate, T_communicate_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+  CALL MPI_Reduce(T_compute, T_compute_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr)
+  CALL MPI_Reduce(T_init, T_init_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+  CALL MPI_Reduce(T_output, T_output_total, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr)  
+  T_output_total = T_output_total / size
+  T_communicate_total = T_communicate_total / size
+  T_compute_total = T_compute_total / size
+  T_init_total = T_init_total / size
+  if ( rank == 0 ) then
+    write(stdout, *) "T_init  : ", T_init_total
+    write(stdout, *) "T_compute  : ", T_compute_total 
+    write(stdout, *) "T_communicate  : ", T_communicate_total
+    write(stdout, *) "T_output  : ", T_output_total
+  end if
 
   call MPI_Finalize(ierr)
 

@@ -40,7 +40,7 @@ CMAKE_COLOR_MAKEFILE:BOOL=ON
 CMAKE_DLLTOOL:FILEPATH=CMAKE_DLLTOOL-NOTFOUND
 
 //Flags used by the linker during all build types.
-CMAKE_EXE_LINKER_FLAGS:STRING=
+CMAKE_EXE_LINKER_FLAGS:STRING=-L/home/wzk/packages/netcdf-parallel/lib
 
 //Flags used by the linker during DEBUG builds.
 CMAKE_EXE_LINKER_FLAGS_DEBUG:STRING=
@@ -61,7 +61,7 @@ CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=
 CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=/home/wzk/MHPC/P1.8/Best-Practice-MHPC/build/CMakeFiles/pkgRedirects
 
 //Fortran compiler
-CMAKE_Fortran_COMPILER:FILEPATH=/usr/bin/f95
+CMAKE_Fortran_COMPILER:FILEPATH=/home/wzk/packages/mpich-4.3.1/module/bin/mpif90
 
 //A wrapper around 'ar' adding the appropriate '--plugin' option
 // for the GCC compiler
@@ -97,7 +97,7 @@ CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/gmake
 
 //Flags used by the linker during the creation of modules during
 // all build types.
-CMAKE_MODULE_LINKER_FLAGS:STRING=
+CMAKE_MODULE_LINKER_FLAGS:STRING=-L/home/wzk/packages/netcdf-parallel/lib
 
 //Flags used by the linker during the creation of modules during
 // DEBUG builds.
@@ -141,7 +141,7 @@ CMAKE_READELF:FILEPATH=/usr/bin/readelf
 
 //Flags used by the linker during the creation of shared libraries
 // during all build types.
-CMAKE_SHARED_LINKER_FLAGS:STRING=
+CMAKE_SHARED_LINKER_FLAGS:STRING=-L/home/wzk/packages/netcdf-parallel/lib
 
 //Flags used by the linker during the creation of shared libraries
 // during DEBUG builds.
@@ -222,37 +222,25 @@ MPI_Fortran_ADDITIONAL_INCLUDE_DIRS:STRING=
 MPI_Fortran_COMPILER:FILEPATH=/home/wzk/packages/mpich-4.3.1/module/bin/mpif90
 
 //MPI Fortran compiler wrapper include directories
-MPI_Fortran_COMPILER_INCLUDE_DIRS:STRING=/home/wzk/packages/mpich-4.3.1/module/include;/home/wzk/packages/mpich-4.3.1/module/include
+MPI_Fortran_COMPILER_INCLUDE_DIRS:STRING=
 
 //MPI Fortran compilation definitions
 MPI_Fortran_COMPILE_DEFINITIONS:STRING=
 
-//MPI Fortran compilation options
+//MPI Fortran compilation flags
 MPI_Fortran_COMPILE_OPTIONS:STRING=
 
-//Path to a file.
-MPI_Fortran_F77_HEADER_DIR:PATH=/home/wzk/packages/mpich-4.3.1/module/include
-
-//MPI Fortran libraries to link against
-MPI_Fortran_LIB_NAMES:STRING=mpifort;mpi
-
 //MPI Fortran linker flags
-MPI_Fortran_LINK_FLAGS:STRING=-Wl,-rpath -Wl,/home/wzk/packages/mpich-4.3.1/module/lib -Wl,--enable-new-dtags
-
-//Path to a file.
-MPI_Fortran_MODULE_DIR:PATH=/home/wzk/packages/mpich-4.3.1/module/include
-
-//Location of the mpi library for MPI
-MPI_mpi_LIBRARY:FILEPATH=/home/wzk/packages/mpich-4.3.1/module/lib/libmpi.so
-
-//Location of the mpifort library for MPI
-MPI_mpifort_LIBRARY:FILEPATH=/home/wzk/packages/mpich-4.3.1/module/lib/libmpifort.so
+MPI_Fortran_LINK_FLAGS:STRING=
 
 //Path to a program.
 NC_CONFIG_EXEC:FILEPATH=/usr/bin/nc-config
 
 //Path to a program.
 NF_CONFIG_EXEC:FILEPATH=/usr/bin/nf-config
+
+//The directory containing a CMake configuration file for NetCDF.
+NetCDF_DIR:PATH=NetCDF_DIR-NOTFOUND
 
 //Arguments to supply to pkg-config
 PKG_CONFIG_ARGN:STRING=
@@ -399,7 +387,7 @@ CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
 //Details about finding MPI
 FIND_PACKAGE_MESSAGE_DETAILS_MPI:INTERNAL=[TRUE][c ][v4.1()]
 //Details about finding MPI_Fortran
-FIND_PACKAGE_MESSAGE_DETAILS_MPI_Fortran:INTERNAL=[/home/wzk/packages/mpich-4.3.1/module/lib/libmpifort.so][/home/wzk/packages/mpich-4.3.1/module/lib/libmpi.so][mpifort;mpi][TRUE][v4.1()]
+FIND_PACKAGE_MESSAGE_DETAILS_MPI_Fortran:INTERNAL=[/home/wzk/packages/mpich-4.3.1/module/bin/mpif90][TRUE][v4.1()]
 //ADVANCED property for variable: MPIEXEC_EXECUTABLE
 MPIEXEC_EXECUTABLE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: MPIEXEC_MAX_NUMPROCS
@@ -420,14 +408,8 @@ MPI_Fortran_COMPILER_INCLUDE_DIRS-ADVANCED:INTERNAL=1
 MPI_Fortran_COMPILE_DEFINITIONS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: MPI_Fortran_COMPILE_OPTIONS
 MPI_Fortran_COMPILE_OPTIONS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_F77_HEADER_DIR
-MPI_Fortran_F77_HEADER_DIR-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_LIB_NAMES
-MPI_Fortran_LIB_NAMES-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: MPI_Fortran_LINK_FLAGS
 MPI_Fortran_LINK_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_MODULE_DIR
-MPI_Fortran_MODULE_DIR-ADVANCED:INTERNAL=1
 //Result of TRY_COMPILE
 MPI_RESULT_Fortran_mpiver_F08_MODULE:INTERNAL=TRUE
 //Result of TRY_COMPILE
@@ -435,13 +417,7 @@ MPI_RESULT_Fortran_test_mpi_F08_MODULE:INTERNAL=TRUE
 //Result of TRY_COMPILE
 MPI_RESULT_Fortran_test_mpi_F77_HEADER:INTERNAL=TRUE
 //Result of TRY_COMPILE
-MPI_RESULT_Fortran_test_mpi_F77_HEADER_NOKIND:INTERNAL=FALSE
-//Result of TRY_COMPILE
 MPI_RESULT_Fortran_test_mpi_F90_MODULE:INTERNAL=TRUE
-//ADVANCED property for variable: MPI_mpi_LIBRARY
-MPI_mpi_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_mpifort_LIBRARY
-MPI_mpifort_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PKG_CONFIG_ARGN
 PKG_CONFIG_ARGN-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PKG_CONFIG_EXECUTABLE

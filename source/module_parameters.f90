@@ -111,6 +111,8 @@ module parallel_parameters
   integer, parameter :: hs = 2
   integer :: ierr, rank, size, comm, prev_rank, next_rank !< Initialized in model.f90
   integer :: z_local, z_global, nz_loc, base, rest !< Initialized in init
+  real :: T_compute, T_communicate, T_init, T_output, T_compute_total, T_communicate_total, T_init_total, T_output_total
+  integer(8) :: t_start, t_end, t_comm_start, t_comm_end
 end module parallel_parameters
 
 !>

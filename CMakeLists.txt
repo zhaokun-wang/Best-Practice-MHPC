@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(Best_Practice_HPC LANGUAGES Fortran)
 
+
+
 # -------------------------------------------------
 # Locate nf-config and nc-config
 # -------------------------------------------------
@@ -56,7 +58,7 @@ target_include_directories(model.x PRIVATE ${NETCDF_INCLUDE_DIR})
 # Compilation flags
 # -------------------------------------------------
 target_compile_options(model.x PRIVATE
-        -Ofast -fPIC
+        -Ofast -fPIC -g
         ${NETCDF_FFLAGS}
 )
 
