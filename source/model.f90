@@ -39,20 +39,19 @@ program atmosphere_model
   !Optional printing of ranks
   print *, "Rank ", rank, " of ", size
 
-
-
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
   call init(etime,output_counter,dt)                    !>initialize old state and new state
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
-  call create_output( )                                 !>create the .nc for the output storing
-  call write_record(oldstat,ref,etime)                  !>write the first record
+  !call create_output( )                                 !>create the .nc for the output storing
+  !call write_record(oldstat,ref,etime)                  !>write the first record
 
   !*** timing ***
   call system_clock(t1)
 
   !**************************** SIMULATION CYCLE BLOCK ***************************
   ptime = int(sim_time/10.0)
+
   do while (etime < sim_time)
 
     !check case in which the last step to do to end is smaller thend set dt
@@ -75,7 +74,7 @@ program atmosphere_model
     !printing area
     if (output_counter >= output_freq) then
       output_counter = output_counter - output_freq
-      call write_record(oldstat,ref,etime)
+      !call write_record(oldstat,ref,etime)
     end if
 
   end do
@@ -84,18 +83,21 @@ program atmosphere_model
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
-  call close_output( )
+  !call close_output( )
 
-  write(stdout,*) "----------------- Atmosphere check ----------------"
-  write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
-  write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
-  write(stdout,*) "---------------------------------------------------"
-
+  if (rank == 0) then
+    write(stdout,*) "----------------- Atmosphere check ----------------"
+    write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
+    write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
+    write(stdout,*) "---------------------------------------------------"
+  end if
   call finalize()
   call system_clock(t2,rate)
 
-  write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
-  write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  if (rank == 0) then
+    write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
+    write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+  endif
 
   call MPI_Finalize(ierr)
 
