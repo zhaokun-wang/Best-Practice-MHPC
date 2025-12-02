@@ -67,9 +67,7 @@ module module_physics
     ! end parallel
 
     call oldstat%set_state(0.0_wp)
-
     ! start parallel
-
     z_global = rank * (nz / size) + hs + 1;                                   ! parallel
     nz_loc = nz / size;                                                       ! parallel
     if ( rank < mod(nz, size) ) then                                            ! parallel
@@ -144,6 +142,10 @@ module module_physics
       write(stdout,*) 'MODEL STATUS INITIALIZED.'
     end if  ! parallel
     ! end parallel
+<<<<<<< HEAD
+=======
+
+>>>>>>> zhaokun
   end subroutine init
 
   !> @brief applying a rungekutta method to evolve 
@@ -322,7 +324,6 @@ module module_physics
 
     CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-
 
   end subroutine total_mass_energy
 

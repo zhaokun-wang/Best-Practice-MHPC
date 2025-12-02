@@ -41,3 +41,13 @@
 *.dwo
 
 *.idea/
+
+#build
+**/build/*
+!**/build/placeholder
+!**/build/*.in
+!**/build/install.sh
+
+#man
+**/man/*
+!**/man/placeholder
