@@ -27,7 +27,7 @@ program atmosphere_model
 
   !Parallel init
   call MPI_Init(ierr)
-
+  comm = MPI_COMM_WORLD
   call MPI_Comm_rank(comm, rank, ierr)
   call MPI_Comm_size(comm, size, ierr)
 
