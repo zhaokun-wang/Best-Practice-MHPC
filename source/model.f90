@@ -92,15 +92,14 @@ program atmosphere_model
     write(stdout,*) "Fractional Delta Mass  : ", (mass1-mass0)/mass0
     write(stdout,*) "Fractional Delta Energy: ", (te1-te0)/te0
     write(stdout,*) "---------------------------------------------------"
-  endif
-
+  end if
   call finalize()
   call system_clock(t2,rate)
 
-  if (rank ==  0) then
+  if (rank == 0) then
     write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
     write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
-  end if
+  endif
 
   call MPI_Finalize(ierr)
 
