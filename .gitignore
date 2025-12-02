@@ -41,6 +41,9 @@
 *.dwo
 
 *.idea/
+.idea/
+*.vscode/
+.vscode/
 
 #build
 **/build/*

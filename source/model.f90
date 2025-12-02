@@ -36,15 +36,12 @@ program atmosphere_model
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
 
-  !Optional printing of ranks
-  print *, "Rank ", rank, " of ", size
-
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
   call init(etime,output_counter,dt)                    !>initialize old state and new state
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
-  !call create_output( )                                 !>create the .nc for the output storing
-  !call write_record(oldstat,ref,etime)                  !>write the first record
+  call create_output( )                                 !>create the .nc for the output storing
+  call write_record(oldstat,ref,etime)                  !>write the first record
 
   !*** timing ***
   call system_clock(t1)
@@ -53,7 +50,6 @@ program atmosphere_model
   ptime = int(sim_time/10.0)
 
   do while (etime < sim_time)
-
     !check case in which the last step to do to end is smaller thend set dt
     if (etime + dt > sim_time) dt = sim_time - etime
 
@@ -63,8 +59,10 @@ program atmosphere_model
 
     !execution percentage write
     if ( mod(etime,ptime) < dt ) then
-      pctime = (etime/sim_time)*100.0_wp
-      write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      if (rank == 0) then
+        pctime = (etime/sim_time)*100.0_wp
+        write(stdout,'(1x,a,i2,a)') 'TIME PERCENT : ', int(pctime), '%'
+      end if
     end if
 
     !updating the actual time and the otput counter
@@ -74,16 +72,15 @@ program atmosphere_model
     !printing area
     if (output_counter >= output_freq) then
       output_counter = output_counter - output_freq
-      !call write_record(oldstat,ref,etime)
+      call write_record(oldstat,ref,etime)
     end if
-
   end do
 
   !******************************************************************************
 
   !**** final printing for checking and timings results ****
   call total_mass_energy(mass1,te1)
-  !call close_output( )
+  call close_output( )
 
   if (rank == 0) then
     write(stdout,*) "----------------- Atmosphere check ----------------"
