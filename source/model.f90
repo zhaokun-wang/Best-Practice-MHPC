@@ -12,6 +12,8 @@ program atmosphere_model
   use module_output, only : create_output, write_record, close_output
   use dimensions , only : sim_time, output_freq
   use iodir, only : stdout
+  use mpi
+  use parallel_parameters
   implicit none
 
   !**** Variables declaration area ****
@@ -22,6 +24,23 @@ program atmosphere_model
   real(wp) :: mass0, te0
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
+
+  !Parallel init
+  call MPI_Init(ierr)
+  comm = MPI_COMM_WORLD
+
+  !Rank and Size
+  call MPI_Comm_rank(comm, rank, ierr)
+  call MPI_Comm_size(comm, size, ierr)
+
+  !Prev and Next ranks
+  prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
+  next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
+
+  !Optional printing of ranks
+  print *, "Rank ", rank, " of ", size
+
+
 
   !**** Initialization region ****
   write(stdout, *) 'SIMPLE ATMOSPHERIC MODEL STARTING.'
@@ -78,5 +97,7 @@ program atmosphere_model
 
   write(stdout,*) "SIMPLE ATMOSPHERIC MODEL RUN COMPLETED."
   write(stdout,*) "USED CPU TIME: ", dble(t2-t1)/dble(rate)
+
+  call MPI_Finalize(ierr)
 
 end program atmosphere_model

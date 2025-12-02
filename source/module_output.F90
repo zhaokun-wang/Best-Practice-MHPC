@@ -5,7 +5,7 @@
 
 module module_output
   use calculation_types, only : wp, iowp
-  use parallel_parameters, only : i_beg, k_beg
+  use parallel_parameters
   use dimensions, only : nx, nz
   use module_types, only : atmospheric_state, reference_state
   use iodir, only : stderr
