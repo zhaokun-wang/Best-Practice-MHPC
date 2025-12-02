@@ -283,7 +283,7 @@ module module_types
         w = vals(I_WMOM) / r             !< Total velocity in z
         t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
         p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-        if (k == 1 .or. k == nz+1) then
+        if ((k == 1 .and. rank == 0 ) .or. (k == nz_loc+1 .and. rank == 1 )) then
           w = 0.0_wp
           d3_vals(I_DENS) = 0.0_wp
         end if
@@ -484,7 +484,7 @@ module module_types
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
     if ( associated(tend%mem) ) deallocate(tend%mem)
-    allocate(tend%mem(nx, nz,NVARS))
+    allocate(tend%mem(nx, nz_loc,NVARS))
     tend%dens => tend%mem(:,:,I_DENS)
     tend%umom => tend%mem(:,:,I_UMOM)
     tend%wmom => tend%mem(:,:,I_WMOM)
