@@ -254,18 +254,6 @@ NC_CONFIG_EXEC:FILEPATH=/usr/bin/nc-config
 //Path to a program.
 NF_CONFIG_EXEC:FILEPATH=/usr/bin/nf-config
 
-//Fortran compiler flags for OpenMP parallelization
-OpenMP_Fortran_FLAGS:STRING=-fopenmp
-
-//Fortran compiler libraries for OpenMP parallelization
-OpenMP_Fortran_LIB_NAMES:STRING=gomp;pthread
-
-//Path to the gomp library for OpenMP
-OpenMP_gomp_LIBRARY:FILEPATH=/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so
-
-//Path to the pthread library for OpenMP
-OpenMP_pthread_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libpthread.a
-
 //Arguments to supply to pkg-config
 PKG_CONFIG_ARGN:STRING=
 
@@ -408,10 +396,6 @@ CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
 FIND_PACKAGE_MESSAGE_DETAILS_MPI:INTERNAL=[TRUE][c ][v3.1()]
 //Details about finding MPI_Fortran
 FIND_PACKAGE_MESSAGE_DETAILS_MPI_Fortran:INTERNAL=[/home/everaldi/opt/lib/openmpi/5.0.8/lib/libmpi_usempif08.so][/home/everaldi/opt/lib/openmpi/5.0.8/lib/libmpi_usempi_ignore_tkr.so][/home/everaldi/opt/lib/openmpi/5.0.8/lib/libmpi_mpifh.so][/home/everaldi/opt/lib/openmpi/5.0.8/lib/libmpi.so][mpi_usempif08;mpi_usempi_ignore_tkr;mpi_mpifh;mpi][TRUE][v3.1()]
-//Details about finding OpenMP
-FIND_PACKAGE_MESSAGE_DETAILS_OpenMP:INTERNAL=[TRUE][c ][v4.5()]
-//Details about finding OpenMP_Fortran
-FIND_PACKAGE_MESSAGE_DETAILS_OpenMP_Fortran:INTERNAL=[-fopenmp][/usr/lib/gcc/x86_64-linux-gnu/11/libgomp.so][/usr/lib/x86_64-linux-gnu/libpthread.a][v4.5()]
 //ADVANCED property for variable: MPIEXEC_EXECUTABLE
 MPIEXEC_EXECUTABLE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: MPIEXEC_MAX_NUMPROCS
@@ -458,22 +442,6 @@ MPI_mpi_mpifh_LIBRARY-ADVANCED:INTERNAL=1
 MPI_mpi_usempi_ignore_tkr_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: MPI_mpi_usempif08_LIBRARY
 MPI_mpi_usempif08_LIBRARY-ADVANCED:INTERNAL=1
-//Result of TRY_COMPILE
-OpenMP_COMPILE_RESULT_FortranHeader_fopenmp:INTERNAL=TRUE
-//Result of TRY_COMPILE
-OpenMP_COMPILE_RESULT_FortranModule_fopenmp:INTERNAL=TRUE
-//ADVANCED property for variable: OpenMP_Fortran_FLAGS
-OpenMP_Fortran_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: OpenMP_Fortran_LIB_NAMES
-OpenMP_Fortran_LIB_NAMES-ADVANCED:INTERNAL=1
-//Fortran compiler's OpenMP specification date
-OpenMP_Fortran_SPEC_DATE:INTERNAL=201511
-//Result of TRY_COMPILE
-OpenMP_SPECTEST_Fortran_:INTERNAL=TRUE
-//ADVANCED property for variable: OpenMP_gomp_LIBRARY
-OpenMP_gomp_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: OpenMP_pthread_LIBRARY
-OpenMP_pthread_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PKG_CONFIG_ARGN
 PKG_CONFIG_ARGN-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PKG_CONFIG_EXECUTABLE

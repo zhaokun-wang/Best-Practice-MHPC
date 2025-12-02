@@ -45,12 +45,6 @@ module module_physics
     dx = xlen / nx
     dz = zlen / nz
 
-    call oldstat%new_state( )
-    call newstat%new_state( )
-    call flux%new_flux( )
-    call tend%new_tendency( )
-    call ref%new_ref( )
-
     dt = min(dx,dz) / max_speed * cfl
     etime = 0.0_wp
     output_counter = 0.0_wp
@@ -65,8 +59,6 @@ module module_physics
       write(stdout,*) 'final time : ', sim_time
     end if                                                                    ! parallel
     ! end parallel
-
-    call oldstat%set_state(0.0_wp)
 
     ! start parallel
     z_global = rank * (nz / size) + hs + 1;                                   ! parallel
@@ -83,9 +75,18 @@ module module_physics
       z_global = z_global - hs
     end if
 
+    call oldstat%new_state( )
+    call oldstat%set_state(0.0_wp)
+
+
+    call newstat%new_state( )
+    call flux%new_flux( )
+    call tend%new_tendency( )
+    call ref%new_ref( )
+
     
     !$omp parallel default(none) &
-    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg, i_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
     !$omp do collapse(2)
@@ -116,6 +117,7 @@ module module_physics
     ref%denstheta(:) = 0.0_wp
     !$omp end single
 
+
     !$omp do
     do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
@@ -127,6 +129,7 @@ module module_physics
     end do
     !$omp end do
 
+
     !$omp do
     do k = 1, nz_loc+1
       z = (k_beg-1 + k-1) * dz
@@ -136,8 +139,8 @@ module module_physics
       ref%pressure(k) = c0*(hr*ht)**cdocv
     end do
     !$omp end do
-
     !$omp end parallel
+
 
     if ( rank == 0 ) then ! parallel
       write(stdout,*) 'MODEL STATUS INITIALIZED.'
@@ -300,6 +303,7 @@ module module_physics
     real(wp), intent(out) :: total_mass, total_te                             ! parallel
     integer :: i, k, request_mass, request_te                                 ! parallel
     real(wp) :: r, u, w, th, p, t, ke, ie
+    integer :: ierr2
     mass = 0.0_wp
     te = 0.0_wp
 
@@ -320,8 +324,8 @@ module module_physics
     end do
     !$omp end parallel do
 
-    CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-    CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr2)
+    CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr2)
 
   end subroutine total_mass_energy
 

@@ -192,6 +192,7 @@ module module_types
 
     call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
 
+
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
     !$omp parallel do collapse(2) default(shared) &
@@ -343,7 +344,6 @@ module module_types
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-
       do ll = 1, NVARS
           ! SENDRECV DOWNWARDS
           call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &

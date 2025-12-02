@@ -33,7 +33,7 @@ execute_process(
 # -------------------------------------------------
 # Find OpenMP
 # -------------------------------------------------
-find_package(OpenMP REQUIRED)
+#find_package(OpenMP REQUIRED)
 
 # -------------------------------------------------
 # Find MPI (Fortran)
@@ -58,8 +58,9 @@ target_include_directories(model.x PRIVATE ${NETCDF_INCLUDE_DIR})
 target_compile_options(model.x PRIVATE
         -Ofast -fPIC
         ${NETCDF_FFLAGS}
-        ${OpenMP_Fortran_FLAGS}
 )
+
+#${OpenMP_Fortran_FLAGS}
 
 # -------------------------------------------------
 # Link directories
@@ -71,5 +72,6 @@ target_link_directories(model.x PRIVATE ${NETCDF_LIB_DIR})
 # -------------------------------------------------
 target_link_libraries(model.x PRIVATE
         ${NETCDF_FLIBS}
-        ${OpenMP_Fortran_FLAGS}
-        MPI::MPI_Fortran
+        MPI::MPI_Fortran)
+
+#${OpenMP_Fortran_FLAGS}
