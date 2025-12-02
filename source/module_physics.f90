@@ -8,6 +8,7 @@ module module_physics
   use dimensions
   use iodir
   use module_types
+  use mpi
 
   implicit none
 
@@ -53,23 +54,43 @@ module module_physics
     dt = min(dx,dz) / max_speed * cfl
     etime = 0.0_wp
     output_counter = 0.0_wp
-
-    write(stdout,*) 'INITIALIZING MODEL STATUS.'
-    write(stdout,*) 'nx         : ', nx
-    write(stdout,*) 'nz         : ', nz
-    write(stdout,*) 'dx         : ', dx
-    write(stdout,*) 'dz         : ', dz
-    write(stdout,*) 'dt         : ', dt
-    write(stdout,*) 'final time : ', sim_time
+    ! start parallel
+    if ( rank == 0 ) then                                                     ! parallel
+      write(stdout,*) 'INITIALIZING MODEL STATUS.'
+      write(stdout,*) 'nx         : ', nx
+      write(stdout,*) 'nz         : ', nz
+      write(stdout,*) 'dx         : ', dx
+      write(stdout,*) 'dz         : ', dz
+      write(stdout,*) 'dt         : ', dt
+      write(stdout,*) 'final time : ', sim_time
+    end if                                                                    ! parallel
+    ! end parallel
 
     call oldstat%set_state(0.0_wp)
 
+    ! start parallel
+
+    z_global = rank * (nz / size) + hs + 1;                                   ! parallel
+    nz_loc = nz / size;                                                       ! parallel
+    if ( rank < mod(nz, size) ) then                                            ! parallel
+      nz_loc = nz_loc + 1                                                     ! parallel
+      z_global = z_global + rank                                              ! parallel
+    else                                                                      ! parallel
+      z_global = z_global + mod(nz, size);                                        ! parallel
+    end if                                                                    ! parallel
+    
+    k_beg = z_global - hs                                                     ! parallel
+    if ( rank == 0 ) then
+      z_global = z_global - hs
+    end if
+
+    
     !$omp parallel default(none) &
-    !$omp shared(dx, dz, oldstat, newstat, ref) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
     !$omp do collapse(2)
-    do k = 1-hs, nz+hs
+    do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
         do kk = 1, nqpoints
           do ii = 1, nqpoints
@@ -97,7 +118,7 @@ module module_physics
     !$omp end single
 
     !$omp do
-    do k = 1-hs, nz+hs
+    do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
         z = (k_beg-1 + k-0.5_wp) * dz + (qpoints(kk)-0.5_wp)*dz
         call thermal(0.0_wp,z,r,u,w,t,hr,ht)
@@ -108,7 +129,7 @@ module module_physics
     !$omp end do
 
     !$omp do
-    do k = 1, nz+1
+    do k = 1, nz_loc+1
       z = (k_beg-1 + k-1) * dz
       call thermal(0.0_wp,z,r,u,w,t,hr,ht)
       ref%idens(k) = hr
@@ -118,7 +139,11 @@ module module_physics
     !$omp end do
 
     !$omp end parallel
-    write(stdout,*) 'MODEL STATUS INITIALIZED.'
+
+    if ( rank == 0 ) then ! parallel
+      write(stdout,*) 'MODEL STATUS INITIALIZED.'
+    end if  ! parallel
+    ! end parallel
   end subroutine init
 
   !> @brief applying a rungekutta method to evolve 
@@ -269,16 +294,17 @@ module module_physics
   !!
   !! @param[out]      mass                  mass
   !! @param[out]      te                    energy
-  subroutine total_mass_energy(mass,te)
+  subroutine total_mass_energy(total_mass,total_te) 
     implicit none
-    real(wp), intent(out) :: mass, te
-    integer :: i, k
+    real(wp) :: mass, te                                                      ! parallel
+    real(wp), intent(out) :: total_mass, total_te                             ! parallel
+    integer :: i, k, request_mass, request_te                                 ! parallel
     real(wp) :: r, u, w, th, p, t, ke, ie
     mass = 0.0_wp
     te = 0.0_wp
 
     !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
-    do k = 1, nz
+    do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx
         r = oldstat%dens(i,k) + ref%density(k)
         u = oldstat%umom(i,k) / r
@@ -293,6 +319,10 @@ module module_physics
       end do
     end do
     !$omp end parallel do
+
+    CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
   end subroutine total_mass_energy
 
 end module module_physics
