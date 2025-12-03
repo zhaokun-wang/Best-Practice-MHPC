@@ -6,9 +6,9 @@ project(Best_Practice_HPC LANGUAGES Fortran)
 # -------------------------------------------------
 option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
 
-# -------------------------------------------------
-# Set compiler (Original bad practice kept as requested)
-# -------------------------------------------------
+# -------------
+# Set compiler 
+# -------------
 set(CMAKE_Fortran_COMPILER nvfortran)
 
 find_program(NF_CONFIG_EXEC nf-config REQUIRED)
