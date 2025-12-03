@@ -91,7 +91,7 @@ module module_physics
     !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
-    !$acc parallel loop collapse(2) copy(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rho)
+    !$acc parallel loop collapse(2) copy(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rhot)
     !$omp do collapse(2)
     do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
