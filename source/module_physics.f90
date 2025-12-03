@@ -91,7 +91,7 @@ module module_physics
     !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
-    !$acc parallel loop collapse(2) copy(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rhot)
+    !$acc parallel loop collapse(2) present(oldstat%mem) private(x,z,r,u,w,t,hr,ht)
     !$omp do collapse(2)
     do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
@@ -122,7 +122,7 @@ module module_physics
 !$omp end single
 
 
-    !$acc parallel loop copy(ref%density, ref%denstheta)
+    !$acc parallel loop present(ref%density, ref%denstheta)
     !$omp do
     do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
@@ -309,7 +309,7 @@ module module_physics
   !!
   !! @param[out]      mass                  mass
   !! @param[out]      te                    energy
-  subroutine total_mass_energy(total_mass,total_te) 
+  subroutine total_mass_energy(total_mass,total_te)
     implicit none
     real(wp) :: mass, te                                                      ! parallel
     real(wp), intent(out) :: total_mass, total_te                             ! parallel
@@ -320,7 +320,7 @@ module module_physics
     mass = 0.0_wp
     te = 0.0_wp
 
-    !$acc parallel loop reduction(+:mass, te) copyin(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rhot, ref%density, ref%denstheta)
+    !$acc parallel loop reduction(+:mass, te) present(oldstat%mem, ref%density, ref%denstheta)
     !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
     do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx

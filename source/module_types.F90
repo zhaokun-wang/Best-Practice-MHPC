@@ -118,28 +118,35 @@ module module_types
     atmo%umom(1-hs:,1-hs:) => atmo%mem(:,:,I_UMOM)
     atmo%wmom(1-hs:,1-hs:) => atmo%mem(:,:,I_WMOM)
     atmo%rhot(1-hs:,1-hs:) => atmo%mem(:,:,I_RHOT)
+    !$acc enter data create(atmo%mem)
   end subroutine new_state
 
     !> @brief Sets an existing atmospheric state to a given value
     !> @param[inout] atmo Existing atmospheric state
     !> @param[in] xval New value to be assigned to atmo
-  subroutine set_state(atmo, xval)
-    implicit none
-    class(atmospheric_state), intent(inout) :: atmo
-    real(wp), intent(in) :: xval
-    if ( .not. associated(atmo%mem) ) then
-      write(stderr,*) 'NOT ALLOCATED STATE ERROR AT LINE ', __LINE__
-      stop
-    end if
-    atmo%mem(:,:,:) = xval
-  end subroutine set_state
+    subroutine set_state(atmo, xval)
+      implicit none
+      class(atmospheric_state), intent(inout) :: atmo
+      real(wp), intent(in) :: xval
+      !$acc parallel loop collapse(3) present(atmo%mem)
+      do ll = 1, NVARS
+        do k = 1-hs, nz_loc+hs
+          do i = 1-hs, nx+hs
+            atmo%mem(i,k,ll) = xval
+          end do
+        end do
+      end do
+    end subroutine set_state
 
     !> @brief Deletes existing atmospheric state
     !> @param[inout] atmo Existing atmospheric state to be deleted
   subroutine del_state(atmo)
     implicit none
     class(atmospheric_state), intent(inout) :: atmo
-    if ( associated(atmo%mem) ) deallocate(atmo%mem)
+    if ( associated(atmo%mem) ) then
+      !$acc exit data delete(atmo%mem)
+      deallocate(atmo%mem)
+    end if
     nullify(atmo%dens)
     nullify(atmo%umom)
     nullify(atmo%wmom)
@@ -161,7 +168,7 @@ module module_types
     integer :: ll, k, i
     !> Actual loop doing the update
 
-    !$acc parallel loop collapse(2) copyin(s0%mem, tend%mem) copyout(s2%mem)
+    !$acc parallel loop collapse(2) present(s0%mem, s2%mem, tend%mem)
     !$omp parallel do collapse(2) default(shared) private(i,k,ll)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -198,8 +205,8 @@ module module_types
 
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
-    !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot) private(stencil, vals, d3_vals)
+    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
+    !$acc private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc
@@ -232,7 +239,7 @@ module module_types
     !$omp end parallel do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(2) copyin(flux%mem) copyout(tendency%mem)
+    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
     !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -271,8 +278,8 @@ module module_types
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
-    !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot) private(stencil, vals, d3_vals)
+    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
+    !$acc private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc+1
@@ -309,7 +316,7 @@ module module_types
     !$omp end parallel do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(2) copyout(tendency%mem) copy(tendency%wmom) copyin(atmostat%dens, flux%mem)
+    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
     !$omp parallel do collapse(2) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -335,7 +342,7 @@ module module_types
     class(atmospheric_state), intent(inout) :: s
     integer :: k, ll
 
-    !$acc parallel loop collapse(2) copy(s%mem)
+    !$acc parallel loop collapse(2) present(s%mem)
     !$omp parallel do collapse(2) default(shared) private(k, ll)
     do ll = 1, NVARS
       do k = 1, nz_loc
@@ -362,7 +369,6 @@ module module_types
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-    !$acc data copy(s%mem, ref%density)
       call system_clock(t_comm_start)
       do ll = 1, NVARS
         !$acc host_data use_device(s%mem)
@@ -437,7 +443,6 @@ module module_types
       !$omp end parallel do
     end if
 
-    !$acc end data
 
       !Sync of ranks
      ! call MPI_BARRIER(comm, ierr)
@@ -454,6 +459,7 @@ module module_types
     allocate(ref%idens(nz_loc+1))
     allocate(ref%idenstheta(nz_loc+1))
     allocate(ref%pressure(nz_loc+1))
+    !$acc enter data create(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
   end subroutine new_ref
 
     !> @brief Delete existing reference state
@@ -461,6 +467,7 @@ module module_types
   subroutine del_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
+    !$acc exit data delete(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
     deallocate(ref%density)
     deallocate(ref%denstheta)
     deallocate(ref%idens)
@@ -479,28 +486,43 @@ module module_types
     flux%umom => flux%mem(:,:,I_UMOM)
     flux%wmom => flux%mem(:,:,I_WMOM)
     flux%rhot => flux%mem(:,:,I_RHOT)
+    !$acc enter data create(flux%mem)
   end subroutine new_flux
 
     !> @brief Set an existing flux object to a given value
     !> @param[inout] flux Flux object whose value should be reassigned
     !> @param[int] xval New value to be assigned
-  subroutine set_flux(flux, xval)
-    implicit none
-    class(atmospheric_flux), intent(inout) :: flux
-    real(wp), intent(in) :: xval
-    if ( .not. associated(flux%mem) ) then
-      write(stderr,*) 'NOT ALLOCATED FLUX ERROR AT LINE ', __LINE__
-      stop
-    end if
-    flux%mem(:,:,:) = xval
-  end subroutine set_flux
+    subroutine set_flux(flux, xval)
+      implicit none
+      class(atmospheric_flux), intent(inout) :: flux
+      real(wp), intent(in) :: xval
+      integer :: i, k, ll
+
+      if ( .not. associated(flux%mem) ) then
+        write(stderr,*) 'NOT ALLOCATED FLUX ERROR'
+        stop
+      end if
+
+      !$acc parallel loop collapse(3) present(flux%mem)
+      do ll = 1, NVARS
+        do k = 1, nz_loc+1
+          do i = 1, nx+1
+            flux%mem(i,k,ll) = xval
+          end do
+        end do
+      end do
+      !$acc end parallel loop
+    end subroutine set_flux
 
     !> @brief Deallocate an existing flux object
     !> @param[inout] flux Object which should be deallocated
   subroutine del_flux(flux)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
-    if ( associated(flux%mem) ) deallocate(flux%mem)
+    if ( associated(flux%mem) ) then
+      !$acc exit data delete(flux%mem)
+      deallocate(flux%mem)
+    end if
     nullify(flux%dens)
     nullify(flux%umom)
     nullify(flux%wmom)
@@ -518,28 +540,43 @@ module module_types
     tend%umom => tend%mem(:,:,I_UMOM)
     tend%wmom => tend%mem(:,:,I_WMOM)
     tend%rhot => tend%mem(:,:,I_RHOT)
+    !$acc enter data create(tend%mem)
   end subroutine new_tendency
 
     !> @brief Set an existing tendency object to a given value
     !> @param[inout] tend Tendency object whose value should be reassigned
     !> @param[int] xval New value to be assigned
-  subroutine set_tendency(tend, xval)
-    implicit none
-    class(atmospheric_tendency), intent(inout) :: tend
-    real(wp), intent(in) :: xval
-    if ( .not. associated(tend%mem) ) then
-      write(stderr,*) 'NOT ALLOCATED FLUX ERROR AT LINE ', __LINE__
-      stop
-    end if
-    tend%mem(:,:,:) = xval
-  end subroutine set_tendency
+    subroutine set_tendency(tend, xval)
+      implicit none
+      class(atmospheric_tendency), intent(inout) :: tend
+      real(wp), intent(in) :: xval
+      integer :: i, k, ll
+
+      if ( .not. associated(tend%mem) ) then
+        write(stderr,*) 'NOT ALLOCATED TENDENCY ERROR AT LINE ', __LINE__
+        stop
+      end if
+
+      !$acc parallel loop collapse(3) present(tend%mem)
+      do ll = 1, NVARS
+        do k = 1, nz_loc
+          do i = 1, nx
+            tend%mem(i,k,ll) = xval
+          end do
+        end do
+      end do
+      !$acc end parallel loop
+    end subroutine set_tendency
 
     !> @brief Deallocate an existing tendency object
     !> @param[inout] tend Object which should be deallocated
   subroutine del_tendency(tend)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
-    if ( associated(tend%mem) ) deallocate(tend%mem)
+    if ( associated(tend%mem) ) then
+      !$acc exit data delete(tend%mem)
+      deallocate(tend%mem)
+    end if
     nullify(tend%dens)
     nullify(tend%umom)
     nullify(tend%wmom)
@@ -549,11 +586,21 @@ module module_types
     !> @brief Assigment operator for atmospheric states
     !> @param[inout] x Atmospheric state to be assigned a new value to
     !> @param[in] y Atmospheric state whose value is taken to be assigned
-  subroutine state_equal_to_state(x,y)
-    implicit none
-    type(atmospheric_state), intent(inout) :: x
-    type(atmospheric_state), intent(in) :: y
-    x%mem(:,:,:) = y%mem(:,:,:)
-  end subroutine state_equal_to_state
+    subroutine state_equal_to_state(x,y)
+      implicit none
+      type(atmospheric_state), intent(inout) :: x
+      type(atmospheric_state), intent(in) :: y
+      integer :: i, k, ll
+
+      !$acc parallel loop collapse(3) present(x%mem, y%mem)
+      do ll = 1, NVARS
+        do k = 1-hs, nz_loc+hs
+          do i = 1-hs, nx+hs
+            x%mem(i,k,ll) = y%mem(i,k,ll)
+          end do
+        end do
+      end do
+      !$acc end parallel loop
+    end subroutine state_equal_to_state
 
 end module module_types
