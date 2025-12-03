@@ -62,7 +62,7 @@ if(USE_OPENACC)
     target_compile_options(model.x PRIVATE
         -Ofast -fPIC
         ${NETCDF_FFLAGS}
-        -acc -gpu=managed -cuda
+        -acc -gpu=cc80 -cuda
     )
     #Flags for OpenACC LINKING
     target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
