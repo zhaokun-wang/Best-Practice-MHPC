@@ -129,6 +129,7 @@ ncview output.nc
 - [x] openACC
 - [x] CMAKE should have option for using threads (compile with openMP) or openACC (nvfortran)
 - [ ] Benchmarks MPI with openacc
+- [ ] Profiling
 - [x] README update of code how works
 - [ ] Doxygen generation of docs
 - [ ] presentation
