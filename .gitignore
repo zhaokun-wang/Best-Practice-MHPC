@@ -52,5 +52,5 @@
 !**/build/install.sh
 
 #man
-**/man/*
+!**/man/*
 !**/man/placeholder
