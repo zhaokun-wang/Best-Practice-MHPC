@@ -128,6 +128,7 @@ module module_types
       implicit none
       class(atmospheric_state), intent(inout) :: atmo
       real(wp), intent(in) :: xval
+      integer :: i, k, ll
       !$acc parallel loop collapse(3) present(atmo%mem)
       do ll = 1, NVARS
         do k = 1-hs, nz_loc+hs
