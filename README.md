@@ -1,6 +1,20 @@
-# A fluid dynamics simulation
+# A fluid dynamics simulation: evolution of a thermal blob
 
 *Authors* Pedde, Veraldi, Zhaokun
+*Date* November 2025
+
+The code is performing the simulation of the evolution of a thermal bubble with a difference
+in term of temperature potential respect to the background (i.e. an evolution of a bubble of vapor
+in a backgorund of fry air).
+
+The code is able to perform a simulation for a pre defined 2D gird of dimension ''nx,nz'', for a simulation
+time and a printing time (output frequency) that can be leave as the default one or can be inserted as an inout for
+a namelist fortran, calling it ''input.nml'' that has to be implemenls
+ted like this:
+
+```text
+
+```
 
 ## MILESTONES
 
