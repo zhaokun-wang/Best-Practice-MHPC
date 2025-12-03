@@ -382,3 +382,68 @@ td {
     background-color: rgba(15, 15, 15, 0.9) !important;
     color: #e6e6e6 !important;
 }
+
+/* =======================================
+   README/详细描述区域终极修复
+   ======================================= */
+
+/* 强制设置主要内容区域的背景和文本颜色 */
+/* 确保覆盖任何可能出现的白底。README内容就在这个区域内。 */
+div.contents {
+    background: rgba(20, 20, 20, 0.82) !important; /* 你的卡片背景色 */
+    color: #e6e6e6 !important; /* 你的通用文本色 */
+}
+
+/* 强制覆盖所有在 div.contents 内的表格单元格 (td) 的背景和文字颜色 */
+/* README文件中的Markdown表格，以及Function Documentation中的Parameters表格都是顽固的白底区域 */
+div.contents td, 
+div.contents tr {
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 确保背景是深色 */
+    color: #e6e6e6 !important; /* 确保文字是浅色 */
+}
+
+/* 确保 README 中的标题也是浅色的 */
+div.contents h1,
+div.contents h2,
+div.contents h3,
+div.contents h4,
+div.contents h5 {
+    color: #ffffff !important;
+}
+/* 调试：高亮所有白色背景元素 */
+*[style*="background-color: white"],
+*[style*="background: white"],
+td[style*="background"],
+div[style*="background"] {
+    background-color: rgba(255, 0, 0, 0.5) !important; /* 半透明红色标记 */
+}
+/* Markdown 内容统一深色背景 */
+div.markdown,
+div.markdown pre,
+div.markdown code,
+div.markdown tt,
+div.markdown table,
+div.markdown td,
+div.markdown th {
+    background-color: rgba(20, 20, 20, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* 表格奇偶行条纹 */
+div.markdown table tr:nth-child(odd) td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+}
+div.markdown table tr:nth-child(even) td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+}
+
+/* 代码块边框圆角 */
+div.markdown pre {
+    border-radius: 8px;
+    padding: 10px;
+}
+
+:root {
+    --fragment-background-color: rgba(30,30,30,0.9);
+    --fragment-foreground-color: #e6e6e6;
+}

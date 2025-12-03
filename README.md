@@ -128,11 +128,11 @@ ncview output.nc
 - [x] add namelist for fortran parameters
 - [x] openACC
 - [x] CMAKE should have option for using threads (compile with openMP) or openACC (nvfortran)
-- [ ] Benchmarks MPI with openacc
-- [ ] Profiling
+- [x] Benchmarks MPI with openacc
+- [x] Profiling
 - [x] README update of code how works
-- [ ] Doxygen generation of docs
-- [ ] presentation
+- [x] Doxygen generation of docs
+- [x] presentation
 
 ---
 
