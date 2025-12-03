@@ -14,7 +14,10 @@ program atmosphere_model
   use iodir, only : stdout
   use mpi
   use parallel_parameters
+
+#ifdef _OPENACC
   use cudafor
+#endif
 
   implicit none
 
@@ -26,7 +29,9 @@ program atmosphere_model
   real(wp) :: mass0, te0
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
+#ifdef _OPENACC
   integer :: N_dev, dev_id, ierr_gpu
+#endif
 
 
   !Parallel init
@@ -44,10 +49,12 @@ program atmosphere_model
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
 
+#ifdef _OPENACC
   !GPU
   ierr_gpu = cudaGetDeviceCount(N_dev)
   dev_id = mod(rank, N_dev)
   ierr_gpu = cudaSetDevice(dev_id)
+#endif
 
   call system_clock(t_end,rate)
   T_communicate = 0
