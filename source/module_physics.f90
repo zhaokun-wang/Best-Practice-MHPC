@@ -91,7 +91,7 @@ module module_physics
     !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
-    !$acc parallel loop collapse(2) copy(oldstat)
+    !$acc parallel loop collapse(2) copy(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rho)
     !$omp do collapse(2)
     do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
@@ -115,7 +115,7 @@ module module_physics
     !$omp end do
     !$acc end parallel loop
 
-!$omp single
+ !$omp single
     newstat = oldstat
     ref%density(:) = 0.0_wp
     ref%denstheta(:) = 0.0_wp
@@ -317,7 +317,7 @@ module module_physics
     mass = 0.0_wp
     te = 0.0_wp
 
-    !$acc parallel loop reduction(+:mass, te) copyin(oldstat, ref%density, ref%denstheta)
+    !$acc parallel loop reduction(+:mass, te) copyin(oldstat%dens, oldstat%umom, oldstat%wmom, oldstat%rhot, ref%density, ref%denstheta)
     !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
     do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx

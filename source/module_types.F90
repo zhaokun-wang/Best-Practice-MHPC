@@ -199,7 +199,7 @@ module module_types
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
     !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux, vals, d3_vals)
+    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc
@@ -272,7 +272,7 @@ module module_types
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
     !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux, vals, d3_vals)
+    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc+1
@@ -362,7 +362,7 @@ module module_types
     integer :: send_count = 2 * (nx + 2 * hs)
 
     !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-    !$acc data copy(s%mem)
+    !$acc data copy(s%mem, ref%density)
       call system_clock(t_comm_start)
       do ll = 1, NVARS
         !$acc host_data use_device(s%mem)
@@ -385,7 +385,7 @@ module module_types
 
     !> FIRST BOUNDARY UPDATE
     if (rank == 0) then
-      !$acc parallel loop collapse(2)
+      !$acc parallel loop collapse(2) present(s%mem, ref%density)
     !$omp parallel do collapse(2) default(shared) private(i, ll)
     do ll = 1, NVARS
       do i = 1-hs,nx+hs
@@ -412,7 +412,7 @@ module module_types
 
     !> LAST BOUNDARY UPDATE
     if (rank == size - 1) then
-      !$acc parallel loop collapse(2)
+      !$acc parallel loop collapse(2) present(s%mem, ref%density)
       !$omp parallel do collapse(2) default(shared) private(i, ll)
       do ll = 1, NVARS
         do i = 1-hs,nx+hs
