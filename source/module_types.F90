@@ -248,8 +248,8 @@ module module_types
     !$omp end parallel do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
-    !$omp parallel do collapse(2) private(ll, k, i)
+    !$acc parallel loop collapse(3) present(flux%mem, tendency%mem)
+    !$omp parallel do collapse(3) private(ll, k, i)
     do ll = 1, NVARS
       do k = 1, nz_loc
         do i = 1, nx
