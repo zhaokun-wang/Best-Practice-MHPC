@@ -10,7 +10,7 @@ set style fill solid border -1
 set boxwidth 0.6
 
 # 设置坐标轴
-set title "Pure MPI(size 2000 * 1000)"
+set title "Pure MPI(size 400 * 200)"
 set xlabel "Number of Nodes"
 set ylabel "Time (s)"
 set grid ytics
