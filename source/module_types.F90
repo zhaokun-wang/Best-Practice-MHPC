@@ -118,7 +118,13 @@ module module_types
     atmo%umom(1-hs:,1-hs:) => atmo%mem(:,:,I_UMOM)
     atmo%wmom(1-hs:,1-hs:) => atmo%mem(:,:,I_WMOM)
     atmo%rhot(1-hs:,1-hs:) => atmo%mem(:,:,I_RHOT)
+
+    ! --- DEVICE ALLOCATION (Manual Deep Copy) ---
+    !$acc enter data copyin(atmo)
     !$acc enter data create(atmo%mem)
+    !$acc enter data attach(atmo%mem)
+    !$acc enter data create(atmo%dens, atmo%umom, atmo%wmom, atmo%rhot)
+    !$acc enter data attach(atmo%dens, atmo%umom, atmo%wmom, atmo%rhot)
   end subroutine new_state
 
     !> @brief Sets an existing atmospheric state to a given value
@@ -145,7 +151,9 @@ module module_types
     implicit none
     class(atmospheric_state), intent(inout) :: atmo
     if ( associated(atmo%mem) ) then
+      !$acc exit data detach(atmo%mem)
       !$acc exit data delete(atmo%mem)
+      !$acc exit data delete(atmo)
       deallocate(atmo%mem)
     end if
     nullify(atmo%dens)
@@ -460,7 +468,9 @@ module module_types
     allocate(ref%idens(nz_loc+1))
     allocate(ref%idenstheta(nz_loc+1))
     allocate(ref%pressure(nz_loc+1))
+    !$acc enter data copyin(ref)
     !$acc enter data create(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
+    !$acc enter data attach(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
   end subroutine new_ref
 
     !> @brief Delete existing reference state
@@ -468,7 +478,9 @@ module module_types
   subroutine del_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
+    !$acc exit data detach(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
     !$acc exit data delete(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
+    !$acc exit data delete(ref)
     deallocate(ref%density)
     deallocate(ref%denstheta)
     deallocate(ref%idens)
@@ -487,7 +499,9 @@ module module_types
     flux%umom => flux%mem(:,:,I_UMOM)
     flux%wmom => flux%mem(:,:,I_WMOM)
     flux%rhot => flux%mem(:,:,I_RHOT)
+    !$acc enter data copyin(flux)
     !$acc enter data create(flux%mem)
+    !$acc enter data attach(flux%mem)
   end subroutine new_flux
 
     !> @brief Set an existing flux object to a given value
@@ -521,7 +535,9 @@ module module_types
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
     if ( associated(flux%mem) ) then
+      !$acc exit data detach(flux%mem)
       !$acc exit data delete(flux%mem)
+      !$acc exit data delete(flux)
       deallocate(flux%mem)
     end if
     nullify(flux%dens)
@@ -541,7 +557,9 @@ module module_types
     tend%umom => tend%mem(:,:,I_UMOM)
     tend%wmom => tend%mem(:,:,I_WMOM)
     tend%rhot => tend%mem(:,:,I_RHOT)
+    !$acc enter data copyin(tend)
     !$acc enter data create(tend%mem)
+    !$acc enter data attach(tend%mem)
   end subroutine new_tendency
 
     !> @brief Set an existing tendency object to a given value
@@ -575,7 +593,9 @@ module module_types
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
     if ( associated(tend%mem) ) then
+      !$acc exit data detach(tend%mem)
       !$acc exit data delete(tend%mem)
+      !$acc exit data delete(tend)
       deallocate(tend%mem)
     end if
     nullify(tend%dens)
