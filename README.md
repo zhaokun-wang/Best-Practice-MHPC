@@ -129,6 +129,22 @@ ncview output.nc
 - [x] openACC
 - [x] CMAKE should have option for using threads (compile with openMP) or openACC (nvfortran)
 - [ ] Benchmarks MPI with openacc
-- [ ] README update of code how works
+- [x] README update of code how works
 - [ ] Doxygen generation of docs
 - [ ] presentation
+
+---
+
+## Authors & Acknowledgments
+
+* **Pedde, Veraldi, Zhaokun** - [GITHUB-Pedde](https://github.com/Gabriel-Pedde), [GITHUB-Veraldi](https://github.com/Eberald), [GITHUB-Zhaokun](https://github.com/zhaokun-wang)
+
+### Citing this project
+If you use this code in your research (I don't know why you should do it, but okey), please cite:
+
+```bibtex
+@misc{Amazing project,
+  author = {Pedde, Veraldi, Zhaokun},
+  title = {Thermic bubble evolution},
+  year = {2025},
+}
