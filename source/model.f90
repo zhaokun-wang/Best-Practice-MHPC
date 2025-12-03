@@ -46,7 +46,7 @@ program atmosphere_model
 
   !GPU
   ierr_gpu = cudaGetDeviceCount(N_dev)
-  dev_id = mod(w_rank, N_dev)
+  dev_id = mod(rank, N_dev)
   ierr_gpu = cudaSetDevice(dev_id)
 
   call system_clock(t_end,rate)
