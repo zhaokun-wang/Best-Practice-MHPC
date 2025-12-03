@@ -238,6 +238,7 @@ module module_physics
   !! @param[out]      hr                    constant density for the given height z
   !! @param[out]      ht                    constant temprature for the given height z
   subroutine thermal(x,z,r,u,w,t,hr,ht)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: x, z
     real(wp), intent(out) :: r, u, w, t
@@ -256,6 +257,7 @@ module module_physics
   !! @param[out]      r                     constant density for the given height z
   !! @param[out]      t                     constant temprature for the given height z  
   subroutine hydrostatic_const_theta(z,r,t)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: z
     real(wp), intent(out) :: r, t
@@ -277,6 +279,7 @@ module module_physics
   !! @param[in]       x1                    semi axis length 1 for the ellipse
   !! @param[in]       z1                    semi axis length 2 for the ellipse
   elemental function ellipse(x,z,amp,x0,z0,x1,z1) result(val)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: x, z
     real(wp), intent(in) :: amp

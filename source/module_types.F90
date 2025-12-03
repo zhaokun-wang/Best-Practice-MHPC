@@ -199,7 +199,7 @@ module module_types
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
     !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot, vals, d3_vals)
+    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot) private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc
@@ -272,7 +272,7 @@ module module_types
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
     !$acc parallel loop collapse(2) copy(stencil) copyin(atmostat%mem, ref%density, ref%denstheta) &
-    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot, vals, d3_vals)
+    !$acc copyout(flux%dens, flux%umom, flux%wmom, flux%rhot) private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do k = 1, nz_loc+1
