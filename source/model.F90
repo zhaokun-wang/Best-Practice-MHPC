@@ -14,6 +14,11 @@ program atmosphere_model
   use iodir, only : stdout
   use mpi
   use parallel_parameters
+
+#ifdef _OPENACC
+  use cudafor
+#endif
+
   implicit none
 
   !**** Variables declaration area ****
@@ -24,6 +29,10 @@ program atmosphere_model
   real(wp) :: mass0, te0
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
+#ifdef _OPENACC
+  integer :: N_dev, dev_id, ierr_gpu
+#endif
+
 
   !Parallel init
   call MPI_Init(ierr)
@@ -40,6 +49,13 @@ program atmosphere_model
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
 
+#ifdef _OPENACC
+  !GPU
+  ierr_gpu = cudaGetDeviceCount(N_dev)
+  dev_id = mod(rank, N_dev)
+  ierr_gpu = cudaSetDevice(dev_id)
+#endif
+
   call system_clock(t_end,rate)
   T_communicate = 0
   T_communicate = T_communicate + dble(t_end-t_start)/dble(rate)
@@ -51,14 +67,14 @@ program atmosphere_model
   T_init = 0
   T_compute = 0
   T_output = 0
-  
+
   call system_clock(t_start)
   call init(etime,output_counter,dt)                    !>initialize old state and new state
   call total_mass_energy(mass0,te0)                     !>initalize mass and temperature at start
   call system_clock(t_end,rate)
   T_init = T_init + dble(t_end-t_start)/dble(rate)
-  
-  call system_clock(t_start)  
+
+  call system_clock(t_start)
   call create_output( )                                 !>create the .nc for the output storing
   call system_clock(t_end,rate)
   T_output = T_output + dble(t_end-t_start)/dble(rate)
@@ -126,14 +142,14 @@ program atmosphere_model
   CALL MPI_Reduce(T_communicate, T_communicate_total, 1, MPI_REAL, MPI_SUM, 0, comm, ierr)
   CALL MPI_Reduce(T_compute, T_compute_total, 1, MPI_REAL, MPI_SUM, 0, comm , ierr)
   CALL MPI_Reduce(T_init, T_init_total, 1, MPI_REAL, MPI_SUM, 0, comm, ierr)
-  CALL MPI_Reduce(T_output, T_output_total, 1, MPI_REAL, MPI_SUM, 0, comm , ierr)  
+  CALL MPI_Reduce(T_output, T_output_total, 1, MPI_REAL, MPI_SUM, 0, comm , ierr)
   T_output_total = T_output_total / size
   T_communicate_total = T_communicate_total / size
   T_compute_total = T_compute_total / size
   T_init_total = T_init_total / size
   if ( rank == 0 ) then
     write(stdout, *) "T_init  : ", T_init_total
-    write(stdout, *) "T_compute  : ", T_compute_total 
+    write(stdout, *) "T_compute  : ", T_compute_total
     write(stdout, *) "T_communicate  : ", T_communicate_total
     write(stdout, *) "T_output  : ", T_output_total
   end if

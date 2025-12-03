@@ -91,7 +91,7 @@ module module_physics
     !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
     !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
 
-    !$acc parallel loop collapse(2) copy(oldstat)
+    !$acc parallel loop collapse(2) present(oldstat%mem) private(x,z,r,u,w,t,hr,ht)
     !$omp do collapse(2)
     do k = 1-hs, nz_loc+hs                                                    ! parallel
       do i = 1-hs, nx+hs
@@ -115,14 +115,14 @@ module module_physics
     !$omp end do
     !$acc end parallel loop
 
-!$omp single
+ !$omp single
     newstat = oldstat
     ref%density(:) = 0.0_wp
     ref%denstheta(:) = 0.0_wp
 !$omp end single
 
 
-    !$acc parallel loop copy(ref%density, ref%denstheta)
+    !$acc parallel loop present(ref%density, ref%denstheta)
     !$omp do
     do k = 1-hs, nz_loc+hs                                                    ! parallel   
       do kk = 1, nqpoints
@@ -238,6 +238,7 @@ module module_physics
   !! @param[out]      hr                    constant density for the given height z
   !! @param[out]      ht                    constant temprature for the given height z
   subroutine thermal(x,z,r,u,w,t,hr,ht)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: x, z
     real(wp), intent(out) :: r, u, w, t
@@ -256,6 +257,7 @@ module module_physics
   !! @param[out]      r                     constant density for the given height z
   !! @param[out]      t                     constant temprature for the given height z  
   subroutine hydrostatic_const_theta(z,r,t)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: z
     real(wp), intent(out) :: r, t
@@ -277,6 +279,7 @@ module module_physics
   !! @param[in]       x1                    semi axis length 1 for the ellipse
   !! @param[in]       z1                    semi axis length 2 for the ellipse
   elemental function ellipse(x,z,amp,x0,z0,x1,z1) result(val)
+    !$acc routine seq
     implicit none
     real(wp), intent(in) :: x, z
     real(wp), intent(in) :: amp
@@ -306,7 +309,7 @@ module module_physics
   !!
   !! @param[out]      mass                  mass
   !! @param[out]      te                    energy
-  subroutine total_mass_energy(total_mass,total_te) 
+  subroutine total_mass_energy(total_mass,total_te)
     implicit none
     real(wp) :: mass, te                                                      ! parallel
     real(wp), intent(out) :: total_mass, total_te                             ! parallel
@@ -317,7 +320,7 @@ module module_physics
     mass = 0.0_wp
     te = 0.0_wp
 
-    !$acc parallel loop reduction(+:mass, te) copyin(oldstat, ref%density, ref%denstheta)
+    !$acc parallel loop reduction(+:mass, te) present(oldstat%mem, ref%density, ref%denstheta)
     !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
     do k = 1, nz_loc                                                          ! parallel
       do i = 1, nx

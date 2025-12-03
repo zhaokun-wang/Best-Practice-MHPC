@@ -109,8 +109,8 @@ module module_output
       !now we fill the variables with nz_loc as dimension in z
 
 
-      !$acc parallel loop collapse(2) copyin(atmostat, ref%density, ref%denstheta) copy(dens) copyout(uwnd, wwnd, theta)
-
+      !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta) &
+      !$acc copyout(dens, uwnd, wwnd, theta)
       !$omp parallel do collapse(2) private(k,i)
       do k = 1, nz_loc
         do i = 1, nx
