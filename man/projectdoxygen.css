@@ -1,0 +1,449 @@
+/* ===============================
+   BACKGROUND IMAGE WITH BLUR (CORRECT)
+   =============================== */
+
+body {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    background: transparent !important; /* 禁用默认背景 */
+}
+
+/* 用伪元素 ::before 来显示虚化后的背景图 */
+
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+
+    /* 顶部：深色渐变压暗；底部：你的背景图 */
+    background-image: 
+        radial-gradient(circle at center, rgba(0,0,0,0.2), rgba(0,0,0,0.8)),
+        url("image.png");
+
+    /* 自动水平平铺，避免竖图黑边 */
+    background-size: auto 100%;
+    background-repeat: repeat-x;
+    background-position: center;
+
+    filter: blur(1px) brightness(0.8);
+}
+
+
+/* ===============================
+   CONTENT PANELS（半透明卡片）
+   =============================== */
+
+div.contents,
+div.header,
+div.navpath,
+#side-nav,
+#nav-tree {
+    background: rgba(20, 20, 20, 0.82);
+    backdrop-filter: blur(1px);
+    border-radius: 10px;
+    margin: 15px;
+    padding: 20px;
+    box-shadow: 0 0 18px rgba(0,0,0,0.55);
+}
+
+
+/* ===============================
+   TEXT COLORS
+   =============================== */
+
+body, td, th, div, p {
+    color: #e6e6e6 !important;
+}
+
+.title, h1, h2, h3, h4, h5 {
+    color: #ffffff !important;
+}
+
+/* ===============================
+   LINKS
+   =============================== */
+
+a, a:visited {
+    color: #71b7ff !important;
+}
+a:hover {
+    color: #a3d0ff !important;
+}
+
+/* ===============================
+   CODE BLOCKS
+   =============================== */
+
+pre, code, tt {
+    background: #000000 !important;
+    color: #e8e8e8 !important;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: "Fira Code", "Consolas", monospace;
+    overflow-x: auto;
+    box-shadow: 0 0 10px rgba(0,0,0,0.4);
+}
+
+code {
+    padding: 3px 6px;
+}
+
+/* ===============================
+   TABLES
+   =============================== */
+
+table.directory tr.even {
+    background-color: rgba(35, 35, 35, 0.9);
+}
+table.directory tr.odd {
+    background-color: rgba(50, 50, 50, 0.9);
+}
+
+table {
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+th, td {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ===============================
+   INCREASE GENERAL TEXT SIZE
+   (without changing headings)
+   =============================== */
+
+/* 主体文本、段落、表格 */
+body, td, th, div, p, li {
+    font-size: 18px !important;   /* 原本大多是 14px */
+    line-height: 1.6 !important;
+}
+
+/* 代码块字体单独调大 */
+pre, code, tt {
+    font-size: 16px !important;   /* 原本约 12–13px */
+}
+
+/* ===============================
+   INCREASE MENU FONT SIZE
+   (nav-tree, side-nav)
+   =============================== */
+
+#nav-tree, 
+#nav-tree div, 
+#nav-tree a,
+#side-nav,
+#side-nav div,
+#side-nav a {
+    font-size: 18px !important;     /* 调整菜单字体大小 */
+    line-height: 1.6 !important;
+}
+
+/* 修正树节点图标（折叠/展开箭头）对齐问题 */
+#nav-tree .item,
+#nav-tree .label,
+#nav-tree .selected {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+}
+
+/* 可选：让选中项更显眼 */
+#nav-tree .selected {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+}
+
+/* ===============================
+   DOXYGEN 成员列表修复 (Variables/Functions)
+   - 针对截图中的白色条纹问题 -
+   =============================== */
+
+/* 1. 强制所有成员项的背景为深色 */
+.memitem {
+    /* 使用您之前定义的深色卡片背景 */
+    background-color: rgba(20, 20, 20, 0.82) !important;
+}
+
+/* 2. 强制成员项内部的表格单元格（td）为深色背景 */
+.memitem > tbody > tr > td {
+    /* 继承背景，或者给一个略浅的深色用于条纹 */
+    background-color: rgba(30, 30, 30, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important; /* 保持边框为浅色 */
+}
+
+/* 3. 调整奇数/偶数行的背景，创建深色条纹效果 */
+/* 奇数行 - 更深一点 */
+.memitem:nth-child(odd) > tbody > tr > td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+}
+
+/* 偶数行 - 略浅一点 */
+.memitem:nth-child(even) > tbody > tr > td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+}
+
+
+/* 4. 确保成员项内的文本颜色是浅色，覆盖可能存在的白色字设置 */
+.memitem,
+.memitem td,
+.memitem a,
+.memitem span {
+    color: #e6e6e6 !important; /* 您定义的通用文本浅色 */
+}
+
+/* 确保标题（如变量名）使用纯白色，更突出 */
+.memname {
+    color: #ffffff !important;
+    font-weight: bold;
+}
+
+/* ===============================
+   DOXYGEN 终极覆盖：针对任何表格单元格
+   =============================== */
+
+/* 强制所有 TD 元素使用深色背景和浅色文字 */
+td {
+    background-color: rgba(30, 30, 30, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* 强制奇数/偶数行的 TD 使用深色条纹 */
+/* 确保覆盖任何默认的 'white' 颜色 */
+
+/* 奇数行 - 更深一点 */
+tr:nth-child(odd) td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* 偶数行 - 略浅一点 */
+tr:nth-child(even) td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* ===============================
+   DOXYGEN 终极修复：解决成员列表和文档区域的白色背景
+   =============================== */
+
+/* 1. 强制所有成员项（Variables/Functions 列表）的背景 */
+.memitem {
+    background-color: rgba(20, 20, 20, 0.82) !important; /* 统一为深色卡片背景 */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 2. 强制成员项内的表格单元格（td）背景和文字颜色 */
+/* 目标：解决第一张图（Variables）中的白色条纹问题 */
+.memitem table td,
+.memitem tr td {
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 默认的条纹深色 */
+    color: #e6e6e6 !important; /* 强制文本为浅色 */
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 3. 设置奇偶行条纹效果（让列表更易读） */
+/* 偶数行 - 略浅一点的深色 */
+.memitem:nth-child(even) tr td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+}
+/* 奇数行 - 更深一点的深色 */
+.memitem:nth-child(odd) tr td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+}
+
+
+/* 4. 解决第二张图（Function Documentation）中的白色背景问题 */
+
+/* 成员文档（参数、详细描述）区域的背景 */
+.memdoc {
+    background-color: rgba(15, 15, 15, 0.9) !important; /* 更深的背景，与主内容区分 */
+    color: #e6e6e6 !important;
+    border-radius: 0 0 8px 8px !important; /* 底部圆角 */
+}
+
+/* 成员文档内部所有文本（如参数描述） */
+.memdoc p,
+.memdoc span,
+.memdoc table {
+    color: #e6e6e6 !important;
+}
+
+
+/* 5. 确保标题和重要名称突出 */
+/* 变量/函数名称（如 Integer parameter ::n_s 或 procedure public...）*/
+.memname {
+    color: #ffffff !important;
+    font-weight: bold !important;
+}
+
+/* =======================================
+   DOXYGEN 终极修复：解决浅色标题和参数描述背景
+   ======================================= */
+
+/* 1. 解决成员名称/标题区域的浅色背景和文字冲突 */
+/* 这部分通常由 memtitle 或 memname 所在的 td 控制 */
+.memtitle,
+.memtemplate {
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 强制标题区域使用深色背景 */
+    color: #ffffff !important; /* 强制标题文字使用亮色 */
+}
+
+.memtemplate td {
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 强制模板行的 td 使用深色背景 */
+}
+
+/* 2. 解决函数/子程序文档区域（Parameters 列表）的浅色背景和文字冲突 */
+/* 这部分是 memdoc 内部的表格 */
+.memdoc table {
+    /* 整个参数表格的背景 */
+    background-color: rgba(15, 15, 15, 0.9) !important; 
+    border-radius: 5px;
+}
+
+.memdoc table tr td {
+    /* 参数描述的表格单元格 */
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 强制背景为深色 */
+    color: #e6e6e6 !important; /* 强制描述文字为浅色 */
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 3. 优化参数变量 (x, y) 的颜色 */
+/* 参数变量名称通常被 class="paramname" 或类似的 span/code 包裹 */
+.paramname,
+.params .paramname,
+.memdoc code {
+    color: #ffd700 !important; /* 更改为更醒目的金色/黄色 */
+    font-weight: bold !important;
+}
+
+/* 额外修复：确保函数签名中的类型和关键字也是浅色的 */
+.memname {
+    color: #ffffff !important;
+}
+.memname span {
+    color: #e6e6e6 !important;
+}
+
+/* =======================================
+   DOXYGEN 终极覆盖 V4: 解决所有表格白色背景
+   ======================================= */
+
+/* 1. 强制覆盖所有表格单元格 (td) 的背景和文字颜色 */
+/* 解决图 1 的 Variables 列表条纹，以及图 4 的 Parameters 描述表格 */
+/* 目标是覆盖任何可能携带白色背景的 td 元素 */
+td {
+    /* 强制背景为深色 */
+    background-color: rgba(30, 30, 30, 0.9) !important;
+    /* 强制文字为浅色 */
+    color: #e6e6e6 !important;
+    /* 调整边框颜色 */
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 2. 针对成员标题和模板行 (memtitle/memtemplate) */
+/* 解决图 2, 3, 4 中函数名称所在矩形的白色背景问题 */
+.memtitle,
+.memtemplate {
+    background-color: rgba(20, 20, 20, 0.9) !important; /* 更深的颜色，与主卡片背景一致 */
+    color: #ffffff !important; /* 强制标题文字使用亮色 */
+}
+
+/* 确保 memtitle 内部的 td 也能继承深色 */
+.memtitle td,
+.memtemplate td {
+    background-color: inherit !important;
+    color: inherit !important;
+}
+
+/* 3. 重新设置奇偶行条纹效果（让列表更易读） */
+/* 仅针对内容表格，如 Variables 列表 */
+.memitem:nth-child(even) tr td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+}
+.memitem:nth-child(odd) tr td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+}
+
+/* 4. 确保参数名称 (x, y, atmostat) 颜色突出 */
+.paramname,
+.params .paramname,
+.memdoc code {
+    color: #ffd700 !important; /* 使用醒目的金色 */
+    font-weight: bold !important;
+}
+
+/* 5. 确保成员文档（memdoc）的背景一致 */
+.memdoc {
+    background-color: rgba(15, 15, 15, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* =======================================
+   README/详细描述区域终极修复
+   ======================================= */
+
+/* 强制设置主要内容区域的背景和文本颜色 */
+/* 确保覆盖任何可能出现的白底。README内容就在这个区域内。 */
+div.contents {
+    background: rgba(20, 20, 20, 0.82) !important; /* 你的卡片背景色 */
+    color: #e6e6e6 !important; /* 你的通用文本色 */
+}
+
+/* 强制覆盖所有在 div.contents 内的表格单元格 (td) 的背景和文字颜色 */
+/* README文件中的Markdown表格，以及Function Documentation中的Parameters表格都是顽固的白底区域 */
+div.contents td, 
+div.contents tr {
+    background-color: rgba(30, 30, 30, 0.9) !important; /* 确保背景是深色 */
+    color: #e6e6e6 !important; /* 确保文字是浅色 */
+}
+
+/* 确保 README 中的标题也是浅色的 */
+div.contents h1,
+div.contents h2,
+div.contents h3,
+div.contents h4,
+div.contents h5 {
+    color: #ffffff !important;
+}
+/* 调试：高亮所有白色背景元素 */
+*[style*="background-color: white"],
+*[style*="background: white"],
+td[style*="background"],
+div[style*="background"] {
+    background-color: rgba(255, 0, 0, 0.5) !important; /* 半透明红色标记 */
+}
+/* Markdown 内容统一深色背景 */
+div.markdown,
+div.markdown pre,
+div.markdown code,
+div.markdown tt,
+div.markdown table,
+div.markdown td,
+div.markdown th {
+    background-color: rgba(20, 20, 20, 0.9) !important;
+    color: #e6e6e6 !important;
+}
+
+/* 表格奇偶行条纹 */
+div.markdown table tr:nth-child(odd) td {
+    background-color: rgba(35, 35, 35, 0.9) !important;
+}
+div.markdown table tr:nth-child(even) td {
+    background-color: rgba(50, 50, 50, 0.9) !important;
+}
+
+/* 代码块边框圆角 */
+div.markdown pre {
+    border-radius: 8px;
+    padding: 10px;
+}
+
+:root {
+    --fragment-background-color: rgba(30,30,30,0.9);
+    --fragment-foreground-color: #e6e6e6;
+}

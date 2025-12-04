@@ -1,3 +1,0 @@
-/home/wzk/MHPC/P1.8/Best-Practice-MHPC/build/CMakeFiles/model.x.dir
-/home/wzk/MHPC/P1.8/Best-Practice-MHPC/build/CMakeFiles/edit_cache.dir
-/home/wzk/MHPC/P1.8/Best-Practice-MHPC/build/CMakeFiles/rebuild_cache.dir

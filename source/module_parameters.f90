@@ -111,6 +111,11 @@ module parallel_parameters
   integer, parameter :: hs = 2
   integer :: ierr, rank, size, comm, prev_rank, next_rank !< Initialized in model.f90
   integer :: z_local, z_global, nz_loc, base, rest !< Initialized in init
+  real :: T_compute, T_communicate, T_init, T_output, T_compute_total, T_communicate_total, T_init_total, T_output_total
+  integer(8) :: t_start, t_end, t_comm_start, t_comm_end
+  integer :: i, k, ll
+  integer :: requests(4)
+  type(dim3) :: block_dims, grid_dims
 end module parallel_parameters
 
 !>
@@ -143,10 +148,30 @@ module dimensions
   use calculation_types, only : wp
   use physical_parameters, only : zlen, xlen
   use indexing
+  use parallel_parameters, only : rank
+  use cudafor
   implicit none
   public
-  integer , parameter :: nx = 100
-  integer , parameter :: nz = int(nx * zlen/xlen)
-  real(wp), parameter :: sim_time = 1000.0_wp
-  real(wp), parameter :: output_freq = 10.0_wp
+  integer, parameter :: nx = 100
+  integer, parameter :: nz = int(nx * zlen/xlen)
+  real(wp) :: sim_time = 1000.0_wp
+  real(wp) :: output_freq = 10.0_wp
+  namelist /input_params/ sim_time, output_freq
+
+contains
+
+  subroutine init_dimensions(filename)
+    character(len=*), intent(in) :: filename
+    integer :: unit_in, ierr
+    open(newunit=unit_in, file=filename, status='old', action='read', iostat=ierr)
+    if (ierr /= 0) then
+      if (rank == 0) then
+      write(*,*) "Impossible read the file, remaining with the default ", filename
+      end if
+      return
+    end if
+    read(unit_in, nml=input_params)
+    close(unit_in)
+  end subroutine init_dimensions
+
 end module dimensions

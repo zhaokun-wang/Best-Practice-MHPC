@@ -2,65 +2,80 @@ cmake_minimum_required(VERSION 3.16)
 project(Best_Practice_HPC LANGUAGES Fortran)
 
 # -------------------------------------------------
-# Locate nf-config and nc-config
+# Option to select backend: ON = OpenACC, OFF = OpenMP
 # -------------------------------------------------
+option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
+
+# -------------
+# Set compiler 
+# -------------
+set(CMAKE_Fortran_COMPILER nvfortran)
+
 find_program(NF_CONFIG_EXEC nf-config REQUIRED)
 find_program(NC_CONFIG_EXEC nc-config REQUIRED)
 
-# -------------------------------------------------
-# Get compiler flags and library flags
-# -------------------------------------------------
 execute_process(
-        COMMAND ${NF_CONFIG_EXEC} --fflags
-        OUTPUT_VARIABLE NETCDF_FFLAGS
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    COMMAND ${NF_CONFIG_EXEC} --fflags
+    OUTPUT_VARIABLE NETCDF_FFLAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-        COMMAND ${NF_CONFIG_EXEC} --flibs
-        OUTPUT_VARIABLE NETCDF_FLIBS
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    COMMAND ${NF_CONFIG_EXEC} --flibs
+    OUTPUT_VARIABLE NETCDF_FLIBS
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-        COMMAND ${NF_CONFIG_EXEC} --includedir
-        OUTPUT_VARIABLE NETCDF_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    COMMAND ${NF_CONFIG_EXEC} --includedir
+    OUTPUT_VARIABLE NETCDF_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-        COMMAND ${NC_CONFIG_EXEC} --libdir
-        OUTPUT_VARIABLE NETCDF_LIB_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    COMMAND ${NC_CONFIG_EXEC} --libdir
+    OUTPUT_VARIABLE NETCDF_LIB_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # -------------------------------------------------
-# Find OpenMP
+# Logic for OpenMP vs OpenACC
 # -------------------------------------------------
-#find_package(OpenMP REQUIRED)
+if(NOT USE_OPENACC)
+    # CPU Branch
+    find_package(OpenMP REQUIRED)
+    message(STATUS "Building with OpenMP (CPU)")
+else()
+    # GPU Branch
+    message(STATUS "Building with OpenACC (GPU)")
+endif()
 
-# -------------------------------------------------
-# Find MPI (Fortran)
-# -------------------------------------------------
 find_package(MPI REQUIRED)
 
-# -------------------------------------------------
-# Your source files
-# -------------------------------------------------
 file(GLOB source_files source/*.f90 source/*.F90)
 
 add_executable(model.x ${source_files})
 
-# -------------------------------------------------
-# Include *.mod directory for NetCDF-Fortran
-# -------------------------------------------------
 target_include_directories(model.x PRIVATE ${NETCDF_INCLUDE_DIR})
 
+#-------------------------------------------------
+# Compilation flags switch
 # -------------------------------------------------
-# Compilation flags
-# -------------------------------------------------
-target_compile_options(model.x PRIVATE
+if(USE_OPENACC)
+    # Flags for OpenACC COMPILATION
+    target_compile_options(model.x PRIVATE
         -Ofast -fPIC
         ${NETCDF_FFLAGS}
-)
-
-#${OpenMP_Fortran_FLAGS}
+        -acc -gpu=cc80 -cuda
+    )
+    #Flags for OpenACC LINKING
+    target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
+else()
+    # Flags for OpenMP
+    target_compile_options(model.x PRIVATE
+        -Ofast -fPIC
+        ${NETCDF_FFLAGS}
+        ${OpenMP_Fortran_FLAGS}
+    )
+    #Flags for OpenMP LINKING
+    target_link_libraries(model.x PRIVATE ${OpenMP_Fortran_FLAGS})
+endif()
 
 # -------------------------------------------------
 # Link directories
@@ -68,10 +83,17 @@ target_compile_options(model.x PRIVATE
 target_link_directories(model.x PRIVATE ${NETCDF_LIB_DIR})
 
 # -------------------------------------------------
-# Link libraries: NetCDF, OpenMP, MPI
+# Link libraries switch
 # -------------------------------------------------
-target_link_libraries(model.x PRIVATE
+if(USE_OPENACC)
+    target_link_libraries(model.x PRIVATE
         ${NETCDF_FLIBS}
-        MPI::MPI_Fortran)
+        MPI::MPI_Fortran
+    )
+else()
+    target_link_libraries(model.x PRIVATE
+        ${NETCDF_FLIBS}
+        MPI::MPI_Fortran
+    )
+endif()
 
-#${OpenMP_Fortran_FLAGS}

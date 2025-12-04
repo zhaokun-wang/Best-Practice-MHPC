@@ -1,31 +1,184 @@
-# A fluid dynamics simulation
+# A fluid dynamics simulation: evolution of a thermal blob
 
 *Authors* Pedde, Veraldi, Zhaokun
+*Date* November 2025
+
+This programme simulates the evolution of a thermal bubble (vapour in dry air) driven by a potential temperature 
+difference relative to the background. It operates on a fixed 2D grid ($n_x, n_z$). The simulation duration and output 
+interval can be set to defaults (``sim_time=1000.0, output_freq=100.0``) or defined externally using a Fortran namelist (input.nml) implemented as shown below:
+
+```text
+&input_params
+  sim_time = 1000.0
+  output_freq = 100.0
+/
+```
+the default parameters for the grid are $n_x=100$, $n_z$ is automatically computed to be half of $n_x$.
+To change this, modify the ``integer, parameter nx `` in ``module_parameters.f90`` in the ``module dimension``.
+
+in order to execute the program so you can do:
+```commandline
+./model.x <input.nml>
+```
+in case of running in parallel
+```commandline
+mpirun -np <np> ./model.x <input.nml>
+```
+in slurm script
+```commandline
+srun ./model.x <input.nml>
+```
+
+Remember that the code has been built with the idea of being runned in Leonardo cluster with a slurm job. In case of the default example a job script
+example is (MPI+OpenACC case with 1 NODE):
+
+```text
+#!/bin/bash
+#SBATCH --job-name=default_thermal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:30:00
+#SBATCH --gres=gpu:4
+#SBATCH --exclusive
+#SBATCH --account=<name_account>
+#SBATCH --partition=boost_usr_prod
+#SBATCH --output=slurm.out
+#SBATCH --error=slurm.err
+
+module load gcc
+module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
+module load nvhpc
+
+export OMP_NUM_THREADS=1
+
+srun --cpu-bind=cores build/./model.x 
+
+```
+The expected execution time in leonardo for the defult example is around ``5 seconds``, and the dimension of the otput is around ``16 MB``.
+
+At the end of the simulation, in the terminal will be printed the results of ``delta mass`` and ``delta energy`` in
+order to check the convergence. Also, you will find a ``output.nc`` file containing the results. 
+Example of output:
+
+```text
+SIMPLE ATMOSPHERIC MODEL STARTING.
+ INITIALIZING MODEL STATUS.
+ nx         :           100
+ nz         :            50
+ dx         :     200.0000000000000     
+ dz         :     200.0000000000000     
+ dt         :    0.6666666666666666     
+ final time :     1000.000000000000     
+ MODEL STATUS INITIALIZED.
+ TIME PERCENT :  0%
+ TIME PERCENT : 10%
+ TIME PERCENT : 20%
+ TIME PERCENT : 30%
+ TIME PERCENT : 40%
+ TIME PERCENT : 50%
+ TIME PERCENT : 60%
+ TIME PERCENT : 70%
+ TIME PERCENT : 80%
+ TIME PERCENT : 90%
+ ----------------- Atmosphere check ----------------
+ Fractional Delta Mass  :     0.000000000000000     
+ Fractional Delta Energy:    1.0051785903894228E-004
+ ---------------------------------------------------
+ SIMPLE ATMOSPHERIC MODEL RUN COMPLETED.
+ USED CPU TIME:     3.399680900000000     
+ T_init  :    3.0457726E-02
+ T_compute  :     3.290100    
+ T_communicate  :     1.120772    
+ T_output  :    0.1801547    
+```
+
+example of the output (using ``ncview``) for the evolution of the potential temperature in time
+
+![Thermal Bubble Evolution](data/animation.gif)
+
+## Building
+
+The code is making use of a ``CMakeLists.txt`` building system. This building system avoid to find the required
+packages for running the code, make possible selecting between openMP and openACC implementation with an internal
+flag and is automatically tested for working in Leonardo boost gpu architecture.
+In order to install the program the following steps are required:
+
+1. Create the build directory if not already present ``mkdir build; cd build`` , prerequisites are: 
+    - NetCDF4 mpi-hdf5 and fortran version 
+    - fortran mpi compiler
+2. In case of leonardo, use this module in order to test both MPI+openMP and MPI+openACC
+version (nvidia compiler):
+    ```text
+    module load gcc
+    module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
+    module load nvhpc
+    ```
+3. Now if you want a version **MPI+OpenMP** what you need is:
+    ```terminaloutput
+    cmake ..
+    make
+    ```
+    instead if you want the version **MPI+OpenACC** what you need is:
+    ```terminaloutput
+    cmake .. -DUSE_OPENACC=ON
+    make
+    ```
+    **WARNING** the openACC version is managed to work with the NVIDIA gpu architecture ``-gpu=cc80``, this is 
+    the architecture for NVIDIA gpus in leonardo cluster.
+
+    **NOTE** if you do not want the openMP hybrid version but a pure MPI version you have two option: commenting the
+    flags on ``CMakeLists.txt`` file or settin ``export OMP_NUM_THREADS=1``.
+
+4. At the end you will find your executable ``model.x``. See section above to know how to run the simulation.
+
+In order to visualize the results, you can use programs like [ncview](https://cirrus.ucsd.edu/ncview/) that you can use
+in this way to see the evolution of the perturbation:
+```terminaloutput
+ncview output.nc
+```
+---
+
+---
 
 ## MILESTONES
 
 - [x] add documentation doxygen style
 - [x] CMAKE
 - [x] add openMP TEST IT
-- [ ] put on leonardo and do benchmarks for serial (1-2-4-8-16-32 nodes) **G**
-- [ ] MPI implementation (WHEN PUT A VARIABLE PUT IT ON PARALLEL IN MODULE PARAMETERS FILES)
+- [x] put on leonardo and do benchmarks for serial
+- [x] MPI implementation (WHEN PUT A VARIABLE PUT IT ON PARALLEL IN MODULE PARAMETERS FILES)
 	- [x] model.f90 init MPI (1D GRID, IMPLEMENT REST)
-		- rank
-		- size
-  		- ierr 	
-		- x_global (not needed)
-		- x_local  (not needed)
-		- z_global
-		- z_local
-		- nz_loc (MEMORY ALONG X IS CONTIGOUS)
-		- comm
-	- [ ] module_physics.f90 MPI runge-kutta (all inside it)
-	- [ ] module_output.F90 MPI (read doc netCDF for the communicator, put right cursor position, block)
-	- [ ] module_types.F90 MPI (exchange halos, trend)
+	- [x] module_physics.f90 MPI runge-kutta (all inside it)
+	- [x] module_output.F90 MPI (read doc netCDF for the communicator, put right cursor position, block)
+	- [x] module_types.F90 MPI (exchange halos, trend)
+- [x] TEST MPI
+- [x] Timer
+- [x] Benchmarks MPI with and without threads
+- [x] add namelist for fortran parameters
+- [x] openACC
+- [x] CMAKE should have option for using threads (compile with openMP) or openACC (nvfortran)
+- [x] Benchmarks MPI with openacc
+- [x] Profiling
+- [x] README update of code how works
+- [x] Doxygen generation of docs
+- [x] Implementation of Non Blocking communication on MPI
+- [x] Benchmarks on non blocking communication on MPI
+- [ ] CUDA kernel version
+- [x] presentation
 
-- [ ] TEST MPI
-- [ ] Benchmarks MPI with and without threads
-- [ ] openACC
-- [ ] CMAKE should have option for using threads (compile with openMP) or openACC
-- [ ] Doxygen generation of docs
+---
 
+## Authors & Acknowledgments
+
+* **Pedde, Veraldi, Zhaokun** - [GITHUB-Pedde](https://github.com/Gabriel-Pedde), [GITHUB-Veraldi](https://github.com/Eberald), [GITHUB-Zhaokun](https://github.com/zhaokun-wang)
+
+### Citing this project
+If you use this code in your research (I don't know why you should do it, but okey), please cite:
+
+```bibtex
+@misc{Amazing project,
+  author = {Pedde, Veraldi, Zhaokun},
+  title = {Thermic bubble evolution},
+  year = {2025},
+}
