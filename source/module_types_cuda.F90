@@ -1,6 +1,6 @@
 
 !> @brief Module containing object orientation to "satisfy the eye"
-module module_types
+module module_types_cuda
   use calculation_types
   use physical_constants
   use physical_parameters
@@ -553,4 +553,4 @@ module module_types
       !$acc end parallel loop
     end subroutine state_equal_to_state
 
-end module module_types
+end module module_types_cuda
