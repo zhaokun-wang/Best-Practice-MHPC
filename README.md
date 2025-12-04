@@ -74,11 +74,11 @@ packages for running the code, make possible selecting between openMP and openAC
 flag and is automatically tested for working in Leonardo boost gpu architecture.
 In order to install the program the following steps are required:
 
-1. Create the build directory if not already present ``mkdir build; cd ..`` , prerequisites are: 
+1. Create the build directory if not already present ``mkdir build; cd build`` , prerequisites are: 
     - NetCDF4 mpi-hdf5 and fortran version 
     - fortran mpi compiler
-2. In case of leonardo, a very good compromise in terms of module in order to test both MPI+openMP and MPI+openACC
-version are the following:
+2. In case of leonardo, use this module in order to test both MPI+openMP and MPI+openACC
+version (nvidia compiler):
     ```text
     module load gcc
     module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
