@@ -115,7 +115,6 @@ module parallel_parameters
   integer(8) :: t_start, t_end, t_comm_start, t_comm_end
   integer :: i, k, ll
   integer :: requests(4)
-  type(dim3) :: block_dims, grid_dims
 end module parallel_parameters
 
 !>
