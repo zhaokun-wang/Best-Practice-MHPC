@@ -8,7 +8,7 @@ module module_physics
   use dimensions
   use iodir
 
-#if defined(_CUDA)
+#if defined(_CUDA_KERN)
   use module_types_cuda
 #else
   use module_types

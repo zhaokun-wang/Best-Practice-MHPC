@@ -8,7 +8,7 @@ option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
 option(USE_CUDA    "Enable CUDA Fortran ONLY (GPU)" OFF)
 
 # -------------
-# Set compiler 
+# Set compiler
 # -------------
 set(CMAKE_Fortran_COMPILER nvfortran)
 
@@ -16,24 +16,24 @@ find_program(NF_CONFIG_EXEC nf-config REQUIRED)
 find_program(NC_CONFIG_EXEC nc-config REQUIRED)
 
 execute_process(
-    COMMAND ${NF_CONFIG_EXEC} --fflags
-    OUTPUT_VARIABLE NETCDF_FFLAGS
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+        COMMAND ${NF_CONFIG_EXEC} --fflags
+        OUTPUT_VARIABLE NETCDF_FFLAGS
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-    COMMAND ${NF_CONFIG_EXEC} --flibs
-    OUTPUT_VARIABLE NETCDF_FLIBS
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+        COMMAND ${NF_CONFIG_EXEC} --flibs
+        OUTPUT_VARIABLE NETCDF_FLIBS
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-    COMMAND ${NF_CONFIG_EXEC} --includedir
-    OUTPUT_VARIABLE NETCDF_INCLUDE_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+        COMMAND ${NF_CONFIG_EXEC} --includedir
+        OUTPUT_VARIABLE NETCDF_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
-    COMMAND ${NC_CONFIG_EXEC} --libdir
-    OUTPUT_VARIABLE NETCDF_LIB_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+        COMMAND ${NC_CONFIG_EXEC} --libdir
+        OUTPUT_VARIABLE NETCDF_LIB_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # -------------------------------------------------
 # Logic for OpenMP vs OpenACC vs CUDA
@@ -42,7 +42,8 @@ if(USE_OPENACC)
     message(STATUS "Building with OpenACC (GPU)")
 elseif(USE_CUDA)
     # Ramo specifico per CUDA Fortran puro
-    message(STATUS "Building with CUDA Fortran (GPU)")
+    message(STATUS "Building with CUDA Fortran (GPU), add directive _CUDA_KERN")
+    add_compile_definitions(_CUDA_KERN)
 else()
     find_package(OpenMP REQUIRED)
     message(STATUS "Building with OpenMP (CPU)")
@@ -69,9 +70,7 @@ if(USE_OPENACC)
     target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
 
 elseif(USE_CUDA)
-    # <--- NUOVO BLOCCO PER CUDA ONLY --->
     # Flags for CUDA Fortran Only (No -acc)
-    # Usiamo -Mpreprocess per garantire che #ifdef _CUDA venga letto
     target_compile_options(model.x PRIVATE
             -Ofast -fPIC
             ${NETCDF_FFLAGS}
