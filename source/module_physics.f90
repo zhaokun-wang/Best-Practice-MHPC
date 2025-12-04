@@ -1,7 +1,5 @@
-
-!> @brief Module containing object orientation to "satisfy the eye"
-module module_types
-  use calculation_types
+module module_physics
+  use calculation_types, only : wp
   use physical_constants
   use physical_parameters
   use parallel_parameters
@@ -9,599 +7,343 @@ module module_types
   use legendre_quadrature
   use dimensions
   use iodir
+  use module_types
   use mpi
 
   implicit none
 
   private
 
-  public :: reference_state
-  public :: atmospheric_state
-  public :: atmospheric_flux
-  public :: atmospheric_tendency
+  public :: init
+  public :: finalize
+  public :: rungekutta
+  public :: total_mass_energy
 
-  public :: assignment(=)
+  real(wp), public :: dt
+  real(wp) :: dx, dz
 
-  !> @brief Reference state (Initial + boundary conditions)
-  type reference_state
-    !> Density
-    real(wp), allocatable, dimension(:) :: density
-    !> Density * Theta
-    real(wp), allocatable, dimension(:) :: denstheta
-    !> Initial density
-    real(wp), allocatable, dimension(:) :: idens
-    !> Initial density * theta
-    real(wp), allocatable, dimension(:) :: idenstheta
-    !> Pressure
-    real(wp), allocatable, dimension(:) :: pressure
-    contains
-    procedure, public :: new_ref
-    procedure, public :: del_ref
-  end type reference_state
-
-  !> @brief Atmospheric state to be evolved
-  type atmospheric_state
-    !> Backing storage for data (first two entries are x and z directions, last one is the array containing dens, umom, wmom and rhot)
-    real(wp), pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
-    real(wp), pointer, dimension(:,:) :: dens
-    !> Current horizontal velocity
-    real(wp), pointer, dimension(:,:) :: umom
-    !> Current vertical velocity
-    real(wp), pointer, dimension(:,:) :: wmom
-    !> Rho theta value
-    real(wp), pointer, dimension(:,:) :: rhot
-    contains
-    procedure, public :: new_state
-    procedure, public :: set_state
-    procedure, public :: del_state
-    procedure, public :: update
-    procedure, public :: exchange_halo_x
-    procedure, public :: exchange_halo_z
-  end type atmospheric_state
-
-  !> @brief Flux computed at volume interfaces
-  type atmospheric_flux
-    !> Backing storage for flux data
-    real(wp), pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
-    real(wp), pointer, dimension(:,:) :: dens
-    !> Horizontal velocity
-    real(wp), pointer, dimension(:,:) :: umom
-    !> Vertical velocity
-    real(wp), pointer, dimension(:,:) :: wmom
-    !> Rho theta value
-    real(wp), pointer, dimension(:,:) :: rhot
-    contains
-    procedure, public :: new_flux
-    procedure, public :: set_flux
-    procedure, public :: del_flux
-  end type atmospheric_flux
-
-  !> @brief Tendency used to update the stat
-  type atmospheric_tendency
-    !> Backing storage data for tendency
-    real(wp), pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
-    real(wp), pointer, dimension(:,:) :: dens
-    !> Horizontal velocity
-    real(wp), pointer, dimension(:,:) :: umom
-    !> Vertical velocity
-    real(wp), pointer, dimension(:,:) :: wmom
-    real(wp), pointer, dimension(:,:) :: rhot
-    contains
-    procedure, public :: new_tendency
-    procedure, public :: set_tendency
-    procedure, public :: del_tendency
-    procedure, public :: xtend
-    procedure, public :: ztend
-  end type atmospheric_tendency
-
-  !> Interface implementing the assignment operator between atmospheric states
-  interface assignment(=)
-    module procedure state_equal_to_state
-  end interface assignment(=)
+  type(atmospheric_state), public :: oldstat
+  type(atmospheric_state), public :: newstat
+  type(atmospheric_tendency), public :: tend
+  type(atmospheric_flux), public :: flux
+  type(reference_state), public :: ref
 
   contains
 
-    !> @brief Instantiates a new atmospheric state
-    !> @param[inout] atmo Atmospheric state
-  subroutine new_state(atmo)
+  !> @brief initialize division of the grid, time, and computing all the data which is needed
+  !! for further calculation
+  !!
+  !! @param[out]      etime                 overall runtime
+  !! @param[out]      output_counter        times of output
+  !! @param[out]      dt                    time step of evolve
+  subroutine init(etime,output_counter,dt)
     implicit none
-    class(atmospheric_state), intent(inout) :: atmo
-    !> If memory is already allocated, deallocate
-    if ( associated(atmo%mem) ) deallocate(atmo%mem)
-    !> Allocate memory and set pointers
-    !PARALLEL
-    allocate(atmo%mem(1-hs:nx+hs, 1-hs:nz_loc+hs, NVARS))
-    atmo%dens(1-hs:,1-hs:) => atmo%mem(:,:,I_DENS)
-    atmo%umom(1-hs:,1-hs:) => atmo%mem(:,:,I_UMOM)
-    atmo%wmom(1-hs:,1-hs:) => atmo%mem(:,:,I_WMOM)
-    atmo%rhot(1-hs:,1-hs:) => atmo%mem(:,:,I_RHOT)
-    !$acc enter data create(atmo%mem)
-  end subroutine new_state
+    real(wp), intent(out) :: etime, output_counter, dt
+    integer :: i, k, ii, kk
+    real(wp) :: x, z, r, u, w, t, hr, ht
 
-    !> @brief Sets an existing atmospheric state to a given value
-    !> @param[inout] atmo Existing atmospheric state
-    !> @param[in] xval New value to be assigned to atmo
-    subroutine set_state(atmo, xval)
-      implicit none
-      class(atmospheric_state), intent(inout) :: atmo
-      real(wp), intent(in) :: xval
-      integer :: i, k, ll
-      !$acc parallel loop collapse(3) present(atmo%mem)
-      do ll = 1, NVARS
-        do k = 1-hs, nz_loc+hs
-          do i = 1-hs, nx+hs
-            atmo%mem(i,k,ll) = xval
-          end do
-        end do
-      end do
-    end subroutine set_state
+    dx = xlen / nx
+    dz = zlen / nz
 
-    !> @brief Deletes existing atmospheric state
-    !> @param[inout] atmo Existing atmospheric state to be deleted
-  subroutine del_state(atmo)
-    implicit none
-    class(atmospheric_state), intent(inout) :: atmo
-    if ( associated(atmo%mem) ) then
-      !$acc exit data delete(atmo%mem)
-      deallocate(atmo%mem)
+    dt = min(dx,dz) / max_speed * cfl
+    etime = 0.0_wp
+    output_counter = 0.0_wp
+    ! start parallel
+    if ( rank == 0 ) then                                                     ! parallel
+      write(stdout,*) 'INITIALIZING MODEL STATUS.'
+      write(stdout,*) 'nx         : ', nx
+      write(stdout,*) 'nz         : ', nz
+      write(stdout,*) 'dx         : ', dx
+      write(stdout,*) 'dz         : ', dz
+      write(stdout,*) 'dt         : ', dt
+      write(stdout,*) 'final time : ', sim_time
+    end if                                                                    ! parallel
+    ! end parallel
+
+    ! start parallel
+    z_global = rank * (nz / size) + hs + 1;                                   ! parallel
+    nz_loc = nz / size;                                                       ! parallel
+    if ( rank < mod(nz, size) ) then                                            ! parallel
+      nz_loc = nz_loc + 1                                                     ! parallel
+      z_global = z_global + rank                                              ! parallel
+    else                                                                      ! parallel
+      z_global = z_global + mod(nz, size);                                        ! parallel
+    end if                                                                    ! parallel
+    
+    k_beg = z_global - hs                                                     ! parallel
+    if ( rank == 0 ) then
+      z_global = z_global - hs
     end if
-    nullify(atmo%dens)
-    nullify(atmo%umom)
-    nullify(atmo%wmom)
-    nullify(atmo%rhot)
-  end subroutine del_state
+
+    call oldstat%new_state( )
+    call oldstat%set_state(0.0_wp)
 
 
-    !> @brief Evolve atmospheric state according to tendency and time step
-    !> param[in] so Current state to be evolve
-    !> param[inout] s2 Output evolved state
-    !> param[in] tend Tendency of the evolution
-    !> param[in] dt Evolution time step
-  subroutine update(s2,s0,tend,dt)
-    implicit none
-    class(atmospheric_state), intent(inout) :: s2
-    class(atmospheric_state), intent(in) :: s0
-    class(atmospheric_tendency), intent(in) :: tend
-    real(wp), intent(in) :: dt
-    integer :: ll, k, i
-    !> Actual loop doing the update
-
-    !$acc parallel loop collapse(2) present(s0%mem, s2%mem, tend%mem)
-    !$omp parallel do collapse(2) default(shared) private(i,k,ll)
-    do ll = 1, NVARS
-      do k = 1, nz_loc
-        do i = 1, nx
-          s2%mem(i,k,ll) = s0%mem(i,k,ll) + dt * tend%mem(i,k,ll)
-        end do
-      end do
-    end do
-    !$omp end parallel do
-    !$acc end parallel loop
-  end subroutine update
-
-    !> @brief Computes the atmospheric tendency along x
-    !> param[inout] tendency Atmospheric tendency
-    !> param[inout] flux Atmospheric flux
-    !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric stategit c
-    !> param[in] dx Horizontal cell size
-    !> param[in] dt Time step
-  subroutine xtend(tendency,flux,ref,atmostat,dx,dt)
-    implicit none
-    class(atmospheric_tendency), intent(inout) :: tendency
-    class(atmospheric_flux), intent(inout) :: flux
-    class(reference_state), intent(in) :: ref
-    class(atmospheric_state), intent(inout) :: atmostat
-    real(wp), intent(in) :: dx, dt
-    integer :: i, k, ll, s
-    real(wp) :: r, u, w, t, p, hv_coef
-    real(wp), dimension(STEN_SIZE) :: stencil
-    real(wp), dimension(NVARS) :: d3_vals, vals
-
-    call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
+    call newstat%new_state( )
+    call flux%new_flux( )
+    call tend%new_tendency( )
+    call ref%new_ref( )
 
 
-    hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
-    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
-    !$acc private(stencil, vals, d3_vals)
-    !$omp parallel do collapse(2) default(shared) &
-    !$omp private(i, k, ll, s, stencil, vals, d3_vals, r, u, w, t, p)
-    do k = 1, nz_loc
-      do i = 1, nx+1
-        do ll = 1, NVARS
-          do s = 1, STEN_SIZE
-            stencil(s) = atmostat%mem(i-hs-1+s,k,ll) !< Collecting neighbor values in the stencil
+
+    !$omp parallel default(none) &
+    !$omp shared(dx, dz, oldstat, newstat, ref, nz_loc, k_beg) &
+    !$omp private(i, k, ii, kk, x, z, r, u, w, t, hr, ht)
+
+    !$acc parallel loop collapse(2) present(oldstat%mem) private(x,z,r,u,w,t,hr,ht)
+    !$omp do collapse(2)
+    do k = 1-hs, nz_loc+hs                                                    ! parallel
+      do i = 1-hs, nx+hs
+        do kk = 1, nqpoints
+          do ii = 1, nqpoints
+            x = (i_beg-1 + i-0.5_wp) * dx + (qpoints(ii)-0.5_wp)*dx
+            z = (k_beg-1 + k-0.5_wp) * dz + (qpoints(kk)-0.5_wp)*dz
+            call thermal(x,z,r,u,w,t,hr,ht)
+            oldstat%dens(i,k) = oldstat%dens(i,k) + &
+                       r * qweights(ii)*qweights(kk)
+            oldstat%umom(i,k) = oldstat%umom(i,k) + &
+                      (r+hr)*u * qweights(ii)*qweights(kk)
+            oldstat%wmom(i,k) = oldstat%wmom(i,k) + &
+                      (r+hr)*w * qweights(ii)*qweights(kk)
+            oldstat%rhot(i,k) = oldstat%rhot(i,k) + &
+                    ( (r+hr)*(t+ht) - hr*ht ) * qweights(ii)*qweights(kk)
           end do
-          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp & !< Compute fluxes with 4th-order scheme
-                     + 7.0_wp * stencil(2)/12.0_wp &
-                     + 7.0_wp * stencil(3)/12.0_wp &
-                     - 1.0_wp * stencil(4)/12.0_wp
-          d3_vals(ll) = - 1.0_wp * stencil(1) & !< Numerical dissipation prop to 3rd derivative
-                        + 3.0_wp * stencil(2) &
-                        - 3.0_wp * stencil(3) &
-                        + 1.0_wp * stencil(4)
-        end do
-        r = vals(I_DENS) + ref%density(k)  !< Total density
-        u = vals(I_UMOM) / r               !< Velocity in x
-        w = vals(I_WMOM) / r               !< Velocity in z
-        t = ( vals(I_RHOT) + ref%denstheta(k) ) / r   !< Temperature
-        p = c0*(r*t)**cdocv !< Equation of state, pressure
-        !> Physical fluxes + dissipation terms
-        flux%dens(i,k) = r*u - hv_coef*d3_vals(I_DENS)
-        flux%umom(i,k) = r*u*u+p - hv_coef*d3_vals(I_UMOM)
-        flux%wmom(i,k) = r*u*w - hv_coef*d3_vals(I_WMOM)
-        flux%rhot(i,k) = r*u*t - hv_coef*d3_vals(I_RHOT)
-      end do
-    end do
-    !$omp end parallel do
-    !$acc end parallel loop
-
-    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
-    !$omp parallel do collapse(2) private(ll, k, i)
-    do ll = 1, NVARS
-      do k = 1, nz_loc
-        do i = 1, nx
-          !> Compute the tendency in x through flux differences
-          tendency%mem(i,k,ll) = &
-              -( flux%mem(i+1,k,ll) - flux%mem(i,k,ll) ) / dx
         end do
       end do
     end do
-    !$omp end parallel do
+    !$omp end do
     !$acc end parallel loop
-  end subroutine xtend
 
-    !> @brief Computes the atmospheric tendency along z
-    !> param[inout] tendency Atmospheric tendency
-    !> param[inout] flux Atmospheric flux
-    !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric state
-    !> param[in] dz Vertical cell size
-    !> param[in] dt Time step
-  subroutine ztend(tendency,flux,ref,atmostat,dz,dt)
-    implicit none
-    class(atmospheric_tendency), intent(inout) :: tendency
-    class(atmospheric_flux), intent(inout) :: flux
-    class(reference_state), intent(in) :: ref
-    class(atmospheric_state), intent(inout) :: atmostat
-    real(wp), intent(in) :: dz, dt
-    integer :: i, k, ll, s
-    real(wp) :: r, u, w, t, p, hv_coef
-    real(wp), dimension(STEN_SIZE) :: stencil
-    real(wp), dimension(NVARS) :: d3_vals, vals
+ !$omp single
+    newstat = oldstat
+    ref%density(:) = 0.0_wp
+    ref%denstheta(:) = 0.0_wp
+!$omp end single
 
 
-    call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
+    !$acc parallel loop present(ref%density, ref%denstheta)
+    !$omp do
+    do k = 1-hs, nz_loc+hs                                                    ! parallel   
+      do kk = 1, nqpoints
+        z = (k_beg-1 + k-0.5_wp) * dz + (qpoints(kk)-0.5_wp)*dz
+        call thermal(0.0_wp,z,r,u,w,t,hr,ht)
+        ref%density(k) = ref%density(k) + hr * qweights(kk)
+        ref%denstheta(k) = ref%denstheta(k) + hr*ht * qweights(kk)
+      end do
+    end do
+    !$omp end do
+    !$acc end parallel loop
 
-    hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
-    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
-    !$acc private(stencil, vals, d3_vals)
-    !$omp parallel do collapse(2) default(shared) &
-    !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
+    !$acc parallel loop copyout(ref%idens, ref%idenstheta, ref%pressure) 
+    !$omp do
     do k = 1, nz_loc+1
-      do i = 1, nx
-        do ll = 1, NVARS
-          do s = 1, STEN_SIZE
-            stencil(s) = atmostat%mem(i,k-hs-1+s,ll)
-          end do
-          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &  !< Compute fluxes with 4th-order scheme
-                     + 7.0_wp * stencil(2)/12.0_wp &
-                     + 7.0_wp * stencil(3)/12.0_wp &
-                     - 1.0_wp * stencil(4)/12.0_wp
-          d3_vals(ll) = - 1.0_wp * stencil(1) &   !< Numerical dissipation prop to 3rd derivative
-                        + 3.0_wp * stencil(2) &
-                        - 3.0_wp * stencil(3) &
-                        + 1.0_wp * stencil(4)
-        end do
-        r = vals(I_DENS) + ref%idens(k)  !< Total density
-        u = vals(I_UMOM) / r             !< Total velocity in x
-        w = vals(I_WMOM) / r             !< Total velocity in z
-        t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
-        p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-        if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
-          w = 0.0_wp
-          d3_vals(I_DENS) = 0.0_wp
-        end if
-        !> Physical fluxes + dissipation terms
-        flux%dens(i,k) = r*w - hv_coef*d3_vals(I_DENS)
-        flux%umom(i,k) = r*w*u - hv_coef*d3_vals(I_UMOM)
-        flux%wmom(i,k) = r*w*w+p - hv_coef*d3_vals(I_WMOM)
-        flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
-      end do
+      z = (k_beg-1 + k-1) * dz
+      call thermal(0.0_wp,z,r,u,w,t,hr,ht)
+      ref%idens(k) = hr
+      ref%idenstheta(k) = hr*ht
+      ref%pressure(k) = c0*(hr*ht)**cdocv
     end do
-    !$omp end parallel do
+    !$omp end do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
-    !$omp parallel do collapse(2) private(ll, k, i)
-    do ll = 1, NVARS
-      do k = 1, nz_loc
-        do i = 1, nx
-          !> Compute the tendency in z through flux differences
-          tendency%mem(i,k,ll) = &
-              -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
-          if (ll == I_WMOM) then
-            tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
-          end if
-        end do
-      end do
-    end do
-    !$omp end parallel do
-    !$acc end parallel loop
-  end subroutine ztend
+    !$omp end parallel
 
 
-    !> @brief Implements periodic boundary conditions along x (2 rows of halos on each side)
-    !> @param[inout] s Atmospheric state whose halos should be exchanged
-  subroutine exchange_halo_x(s)
+    if ( rank == 0 ) then ! parallel
+      write(stdout,*) 'MODEL STATUS INITIALIZED.'
+    end if  ! parallel
+    ! end parallel
+
+  end subroutine init
+
+  !> @brief applying a rungekutta method to evolve 
+  !! in three difference time step and two different directions, 
+  !! each time switch the turn of the calculation on two directions
+  !!
+  !! @param[inout]    s0                    old status
+  !! @param[inout]    s1                    new status
+  !! @param[inout]    fl                    flux
+  !! @param[inout]    tend                  partial derivative of parameters
+  !! @param[in]       dt                    time step of evolve
+  subroutine rungekutta(s0,s1,fl,tend,dt)
     implicit none
-    class(atmospheric_state), intent(inout) :: s
-    integer :: k, ll
+    type(atmospheric_state), intent(inout) :: s0
+    type(atmospheric_state), intent(inout) :: s1
+    type(atmospheric_flux), intent(inout) :: fl
+    type(atmospheric_tendency), intent(inout) :: tend
+    real(wp), intent(in) :: dt
+    real(wp) :: dt1, dt2, dt3
+    logical, save :: dimswitch = .true.
 
-    !$acc parallel loop collapse(2) present(s%mem)
-    !$omp parallel do collapse(2) default(shared) private(k, ll)
-    do ll = 1, NVARS
-      do k = 1, nz_loc
-        s%mem(-1,k,ll)   = s%mem(nx-1,k,ll)
-        s%mem(0,k,ll)    = s%mem(nx,k,ll)
-        s%mem(nx+1,k,ll) = s%mem(1,k,ll)
-        s%mem(nx+2,k,ll) = s%mem(2,k,ll)
-      end do
-    end do
-    !$omp end parallel do
-    !$acc end parallel loop
+    dt1 = dt/1.0_wp
+    dt2 = dt/2.0_wp
+    dt3 = dt/3.0_wp
+    if ( dimswitch ) then
+      call step(s0, s0, s1, dt3, DIR_X, fl, tend)
+      call step(s0, s1, s1, dt2, DIR_X, fl, tend)
+      call step(s0, s1, s0, dt1, DIR_X, fl, tend)
+      call step(s0, s0, s1, dt3, DIR_Z, fl, tend)
+      call step(s0, s1, s1, dt2, DIR_Z, fl, tend)
+      call step(s0, s1, s0, dt1, DIR_Z, fl, tend)
+    else
+      call step(s0, s0, s1, dt3, DIR_Z, fl, tend)
+      call step(s0, s1, s1, dt2, DIR_Z, fl, tend)
+      call step(s0, s1, s0, dt1, DIR_Z, fl, tend)
+      call step(s0, s0, s1, dt3, DIR_X, fl, tend)
+      call step(s0, s1, s1, dt2, DIR_X, fl, tend)
+      call step(s0, s1, s0, dt1, DIR_X, fl, tend)
+    end if
+    dimswitch = .not. dimswitch
+  end subroutine rungekutta
 
-  end subroutine exchange_halo_x
+  ! Semi-discretized step in time:
+  ! s2 = s0 + dt * rhs(s1)
 
-    !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
-    !> @param[inout] s Atmospheric state whose halos should be exchanged
-    !> @param[in] ref Reference state
-    subroutine exchange_halo_z(s,ref)
+  !> @brief calculate the derivative on given direction 
+  !!
+  !! @param[in]       s0                    old status
+  !! @param[inout]    s1                    new status
+  !! @param[inout]    s2                    status to store the updated result
+  !! @param[inout]    fl                    flux
+  !! @param[inout]    tend                  partial derivative of parameters
+  !! @param[in]       dt                    time step of evolve
+  !! @param[in]       dir                   direction to update
+  subroutine step(s0, s1, s2, dt, dir, fl, tend)
     implicit none
-    class(atmospheric_state), intent(inout) :: s
-    class(reference_state), intent(in) :: ref
-    integer :: i, ll
+    type(atmospheric_state), intent(in) :: s0
+    type(atmospheric_state), intent(inout) :: s1
+    type(atmospheric_state), intent(inout) :: s2
+    type(atmospheric_flux), intent(inout) :: fl
+    type(atmospheric_tendency), intent(inout) :: tend
+    real(wp), intent(in) :: dt
+    integer, intent(in) :: dir
+    if (dir == DIR_X) then
+      call tend%xtend(fl,ref,s1,dx,dt)
+    else if (dir == DIR_Z) then
+      call tend%ztend(fl,ref,s1,dz,dt)
+    end if
+    call s2%update(s0,tend,dt)
+  end subroutine step
+
+  !> @brief calculate the constants and perturbations for the given position
+  !!
+  !! @param[in]       x                     x position
+  !! @param[in]       z                     z position
+  !! @param[out]      r                     perturbation term 1
+  !! @param[out]      u                     perturbation term 2
+  !! @param[out]      w                     perturbation term 3
+  !! @param[out]      t                     perturbation term 4
+  !! @param[out]      hr                    constant density for the given height z
+  !! @param[out]      ht                    constant temprature for the given height z
+  subroutine thermal(x,z,r,u,w,t,hr,ht)
+    !$acc routine seq
+    implicit none
+    real(wp), intent(in) :: x, z
+    real(wp), intent(out) :: r, u, w, t
+    real(wp), intent(out) :: hr, ht
+    call hydrostatic_const_theta(z,hr,ht)
+    r = 0.0_wp
+    t = 0.0_wp
+    u = 0.0_wp
+    w = 0.0_wp
+    t = t + ellipse(x,z,3.0_wp,hxlen,p1,p1,p1)
+  end subroutine thermal
+
+  !> @brief calculate the constants for the given height
+  !!
+  !! @param[in]       z                     z position
+  !! @param[out]      r                     constant density for the given height z
+  !! @param[out]      t                     constant temprature for the given height z  
+  subroutine hydrostatic_const_theta(z,r,t)
+    !$acc routine seq
+    implicit none
+    real(wp), intent(in) :: z
+    real(wp), intent(out) :: r, t
+    real(wp) :: p,exner,rt
+    t = theta0
+    exner = exner0 - grav * z / (cp * theta0)
+    p = p0 * exner**(cp/rd)
+    rt = (p / c0)**cvocd
+    r = rt / t
+  end subroutine hydrostatic_const_theta
+
+  !> @brief calculate the perturbations for the given position
+  !!
+  !! @param[in]       x                     x position
+  !! @param[in]       z                     z position
+  !! @param[in]       amp                   amplitude
+  !! @param[in]       x0                    x position of the center of the ellipse to calculate the distance from for generating perturbation
+  !! @param[in]       z0                    z position of the center of the ellipse to calculate the distance from for generating perturbation
+  !! @param[in]       x1                    semi axis length 1 for the ellipse
+  !! @param[in]       z1                    semi axis length 2 for the ellipse
+  elemental function ellipse(x,z,amp,x0,z0,x1,z1) result(val)
+    !$acc routine seq
+    implicit none
+    real(wp), intent(in) :: x, z
+    real(wp), intent(in) :: amp
+    real(wp), intent(in) :: x0, z0
+    real(wp), intent(in) :: x1, z1
+    real(wp) :: val
+    real(wp) :: dist
+    dist = sqrt( ((x-x0)/x1)**2 + ((z-z0)/z1)**2 ) * hpi
+    if (dist <= hpi) then
+      val = amp * cos(dist)**2
+    else
+      val = 0.0_wp
+    end if
+  end function ellipse
+
+  !> @brief call the delete function for all the used types
+  subroutine finalize()
+    implicit none
+    call oldstat%del_state( )
+    call newstat%del_state( )
+    call flux%del_flux( )
+    call tend%del_tendency( )
+    call ref%del_ref( )
+  end subroutine finalize
+
+  !> @brief calculate the total mass and energy for the whole grid
+  !!
+  !! @param[out]      mass                  mass
+  !! @param[out]      te                    energy
+  subroutine total_mass_energy(total_mass,total_te)
+    implicit none
+    real(wp) :: mass, te                                                      ! parallel
+    real(wp), intent(out) :: total_mass, total_te                             ! parallel
+    integer :: i, k, request_mass, request_te                                 ! parallel
+    real(wp) :: r, u, w, th, p, t, ke, ie
+    integer :: ierr2
     integer(8) :: rate
-    integer :: send_count = 2 * (nx + 2 * hs)
+    mass = 0.0_wp
+    te = 0.0_wp
 
-    !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-      call system_clock(t_comm_start)
-      do ll = 1, NVARS
-        !$acc host_data use_device(s%mem)
-          ! SENDRECV DOWNWARDS
-          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-          comm, MPI_STATUS_IGNORE, ierr &
-          )
-
-          ! SENDRECV UPWARDS
-          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
-                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
-                  comm, MPI_STATUS_IGNORE, ierr &
-                  )
-        !$acc end host_data
-      end do
-      call system_clock(t_comm_end,rate)
-      T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
-
-
-    !> FIRST BOUNDARY UPDATE
-    if (rank == 0) then
-      !$acc parallel loop collapse(2) present(s%mem, ref%density)
-    !$omp parallel do collapse(2) default(shared) private(i, ll)
-    do ll = 1, NVARS
-      do i = 1-hs,nx+hs
-        if (ll == I_WMOM) then
-          !> Vertical velocities are set to 0
-          s%mem(i,-1,ll) = 0.0_wp
-          s%mem(i,0,ll) = 0.0_wp
-        else if (ll == I_UMOM) then
-          !> Horizontal velocities on z boundaries are scaled depending on ref values
-          s%mem(i,-1,ll)   = s%mem(i,1,ll) /  &
-              ref%density(1) * ref%density(-1)
-          s%mem(i,0,ll)    = s%mem(i,1,ll) /  &
-              ref%density(1) * ref%density(0)
-        else
-          !> Copying interior values into halos
-          s%mem(i,-1,ll) = s%mem(i,1,ll)
-          s%mem(i,0,ll) = s%mem(i,1,ll)
-        end if
+    !$acc parallel loop reduction(+:mass, te) present(oldstat%mem, ref%density, ref%denstheta)
+    !$omp parallel do reduction(+:mass, te) private(i, k, r, u, w, th, p, t, ke, ie)
+    do k = 1, nz_loc                                                          ! parallel
+      do i = 1, nx
+        r = oldstat%dens(i,k) + ref%density(k)
+        u = oldstat%umom(i,k) / r
+        w = oldstat%wmom(i,k) / r
+        th = (oldstat%rhot(i,k) + ref%denstheta(k) ) / r
+        p = c0*(r*th)**cdocv
+        t = th / (p0/p)**rdocp
+        ke = r*(u*u+w*w)
+        ie = r*cv*t
+        mass = mass + r *dx*dz
+        te = te + (ke + r*cv*t)*dx*dz
       end do
     end do
     !$omp end parallel do
     !$acc end parallel loop
-    end if
 
-    !> LAST BOUNDARY UPDATE
-    if (rank == size - 1) then
-      !$acc parallel loop collapse(2) present(s%mem, ref%density)
-      !$omp parallel do collapse(2) default(shared) private(i, ll)
-      do ll = 1, NVARS
-        do i = 1-hs,nx+hs
-          if (ll == I_WMOM) then
-            !> Vertical velocities are set to 0
-            s%mem(i,nz_loc+1,ll) = 0.0_wp
-            s%mem(i,nz_loc+2,ll) = 0.0_wp
-          else if (ll == I_UMOM) then
-            !> Horizontal velocities on z boundaries are scaled depending on ref values
-            s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll) / &
-                    ref%density(nz_loc) * ref%density(nz_loc+1)
-            s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll) / &
-                    ref%density(nz_loc) * ref%density(nz_loc+2)
-          else
-            !> Copying interior values into halos
-            s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll)
-            s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll)
-          end if
-        end do
-      end do
-      !$acc end parallel loop
-      !$omp end parallel do
-    end if
+    call system_clock(t_comm_start)
+    CALL MPI_Reduce(mass, total_mass, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr2)
+    CALL MPI_Reduce(te, total_te, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm , ierr2)
+    call system_clock(t_comm_end, rate)
+    T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
+  end subroutine total_mass_energy
 
-
-      !Sync of ranks
-     ! call MPI_BARRIER(comm, ierr)
-
-  end subroutine exchange_halo_z
-
-    !> @brief Instantiates a new reference state
-    !> @param[inout] ref New reference state to be allocated memory to
-  subroutine new_ref(ref)
-    implicit none
-    class(reference_state), intent(inout) :: ref
-    allocate(ref%density(1-hs:nz_loc+hs))
-    allocate(ref%denstheta(1-hs:nz_loc+hs))
-    allocate(ref%idens(nz_loc+1))
-    allocate(ref%idenstheta(nz_loc+1))
-    allocate(ref%pressure(nz_loc+1))
-    !$acc enter data create(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
-  end subroutine new_ref
-
-    !> @brief Delete existing reference state
-    !> @param[inout] ref Reference state whose memory should be deallocated
-  subroutine del_ref(ref)
-    implicit none
-    class(reference_state), intent(inout) :: ref
-    !$acc exit data delete(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
-    deallocate(ref%density)
-    deallocate(ref%denstheta)
-    deallocate(ref%idens)
-    deallocate(ref%idenstheta)
-    deallocate(ref%pressure)
-  end subroutine del_ref
-
-    !> @brief Instantiates a new flux object
-    !> @param[inout] flux Flux object which should be initialized
-  subroutine new_flux(flux)
-    implicit none
-    class(atmospheric_flux), intent(inout) :: flux
-    if ( associated(flux%mem) ) deallocate(flux%mem)
-    allocate(flux%mem(1:nx+1, 1:nz_loc+1,NVARS))
-    flux%dens => flux%mem(:,:,I_DENS)
-    flux%umom => flux%mem(:,:,I_UMOM)
-    flux%wmom => flux%mem(:,:,I_WMOM)
-    flux%rhot => flux%mem(:,:,I_RHOT)
-    !$acc enter data create(flux%mem)
-  end subroutine new_flux
-
-    !> @brief Set an existing flux object to a given value
-    !> @param[inout] flux Flux object whose value should be reassigned
-    !> @param[int] xval New value to be assigned
-    subroutine set_flux(flux, xval)
-      implicit none
-      class(atmospheric_flux), intent(inout) :: flux
-      real(wp), intent(in) :: xval
-      integer :: i, k, ll
-
-      if ( .not. associated(flux%mem) ) then
-        write(stderr,*) 'NOT ALLOCATED FLUX ERROR'
-        stop
-      end if
-
-      !$acc parallel loop collapse(3) present(flux%mem)
-      do ll = 1, NVARS
-        do k = 1, nz_loc+1
-          do i = 1, nx+1
-            flux%mem(i,k,ll) = xval
-          end do
-        end do
-      end do
-      !$acc end parallel loop
-    end subroutine set_flux
-
-    !> @brief Deallocate an existing flux object
-    !> @param[inout] flux Object which should be deallocated
-  subroutine del_flux(flux)
-    implicit none
-    class(atmospheric_flux), intent(inout) :: flux
-    if ( associated(flux%mem) ) then
-      !$acc exit data delete(flux%mem)
-      deallocate(flux%mem)
-    end if
-    nullify(flux%dens)
-    nullify(flux%umom)
-    nullify(flux%wmom)
-    nullify(flux%rhot)
-  end subroutine del_flux
-
-    !> @brief Allocate memory to a tendency object
-    !> @param[inout] tend New tendency object which should be initialized
-  subroutine new_tendency(tend)
-    implicit none
-    class(atmospheric_tendency), intent(inout) :: tend
-    if ( associated(tend%mem) ) deallocate(tend%mem)
-    allocate(tend%mem(nx, nz_loc,NVARS))
-    tend%dens => tend%mem(:,:,I_DENS)
-    tend%umom => tend%mem(:,:,I_UMOM)
-    tend%wmom => tend%mem(:,:,I_WMOM)
-    tend%rhot => tend%mem(:,:,I_RHOT)
-    !$acc enter data create(tend%mem)
-  end subroutine new_tendency
-
-    !> @brief Set an existing tendency object to a given value
-    !> @param[inout] tend Tendency object whose value should be reassigned
-    !> @param[int] xval New value to be assigned
-    subroutine set_tendency(tend, xval)
-      implicit none
-      class(atmospheric_tendency), intent(inout) :: tend
-      real(wp), intent(in) :: xval
-      integer :: i, k, ll
-
-      if ( .not. associated(tend%mem) ) then
-        write(stderr,*) 'NOT ALLOCATED TENDENCY ERROR AT LINE ', __LINE__
-        stop
-      end if
-
-      !$acc parallel loop collapse(3) present(tend%mem)
-      do ll = 1, NVARS
-        do k = 1, nz_loc
-          do i = 1, nx
-            tend%mem(i,k,ll) = xval
-          end do
-        end do
-      end do
-      !$acc end parallel loop
-    end subroutine set_tendency
-
-    !> @brief Deallocate an existing tendency object
-    !> @param[inout] tend Object which should be deallocated
-  subroutine del_tendency(tend)
-    implicit none
-    class(atmospheric_tendency), intent(inout) :: tend
-    if ( associated(tend%mem) ) then
-      !$acc exit data delete(tend%mem)
-      deallocate(tend%mem)
-    end if
-    nullify(tend%dens)
-    nullify(tend%umom)
-    nullify(tend%wmom)
-    nullify(tend%rhot)
-  end subroutine del_tendency
-
-    !> @brief Assigment operator for atmospheric states
-    !> @param[inout] x Atmospheric state to be assigned a new value to
-    !> @param[in] y Atmospheric state whose value is taken to be assigned
-    subroutine state_equal_to_state(x,y)
-      implicit none
-      type(atmospheric_state), intent(inout) :: x
-      type(atmospheric_state), intent(in) :: y
-      integer :: i, k, ll
-
-      !$acc parallel loop collapse(3) present(x%mem, y%mem)
-      do ll = 1, NVARS
-        do k = 1-hs, nz_loc+hs
-          do i = 1-hs, nx+hs
-            x%mem(i,k,ll) = y%mem(i,k,ll)
-          end do
-        end do
-      end do
-      !$acc end parallel loop
-    end subroutine state_equal_to_state
-
-end module module_types
+end module module_physics
