@@ -277,11 +277,13 @@ module module_types
     class(reference_state), intent(in) :: ref
     class(atmospheric_state), intent(inout) :: atmostat
     real(wp), intent(in) :: dz, dt
-    integer :: i, k, ll, s
+    integer :: i, k, ll, s, j
     real(wp) :: r, u, w, t, p, hv_coef
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
+    integer, dimension(4) :: ks
 
+    ks = [1, 2, nz_loc, nz_loc + 1]
 
     call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
@@ -291,7 +293,7 @@ module module_types
     !$acc private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
-    do k = 1, nz_loc+1
+    do k = 3, nz_loc-1
       do i = 1, nx
         do ll = 1, NVARS
           do s = 1, STEN_SIZE
@@ -322,14 +324,74 @@ module module_types
         flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
       end do
     end do
+
+    !$omp end parallel do
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(flux%mem, tendency%mem)
+    !$omp parallel do collapse(3) private(ll, k, i)
+    do ll = 1, NVARS
+      do k = 3, nz_loc-2
+        do i = 1, nx
+          !> Compute the tendency in z through flux differences
+          tendency%mem(i,k,ll) = &
+                  -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
+          if (ll == I_WMOM) then
+            tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
+          end if
+        end do
+      end do
+    end do
     !$omp end parallel do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(2) present(flux%mem, tendency%mem)
-    !$omp parallel do collapse(2) private(ll, k, i)
+    !WAIT for Isend-Irecv to be done to compute also boundaries
+    call MPI_Waitall(4, requests, MPI_STATUSES_IGNORE, ierr)
+
+    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
+    !$acc private(stencil, vals, d3_vals, ks)
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
+    do j = 1, 4
+      do i = 1, nx
+        k = ks(j)
+        do ll = 1, NVARS
+          do s = 1, STEN_SIZE
+            stencil(s) = atmostat%mem(i,k-hs-1+s,ll)
+          end do
+          vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &  !< Compute fluxes with 4th-order scheme
+                  + 7.0_wp * stencil(2)/12.0_wp &
+                  + 7.0_wp * stencil(3)/12.0_wp &
+                  - 1.0_wp * stencil(4)/12.0_wp
+          d3_vals(ll) = - 1.0_wp * stencil(1) &   !< Numerical dissipation prop to 3rd derivative
+                  + 3.0_wp * stencil(2) &
+                  - 3.0_wp * stencil(3) &
+                  + 1.0_wp * stencil(4)
+        end do
+        r = vals(I_DENS) + ref%idens(k)  !< Total density
+        u = vals(I_UMOM) / r             !< Total velocity in x
+        w = vals(I_WMOM) / r             !< Total velocity in z
+        t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
+        p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
+        if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
+          w = 0.0_wp
+          d3_vals(I_DENS) = 0.0_wp
+        end if
+        !> Physical fluxes + dissipation terms
+        flux%dens(i,k) = r*w - hv_coef*d3_vals(I_DENS)
+        flux%umom(i,k) = r*w*u - hv_coef*d3_vals(I_UMOM)
+        flux%wmom(i,k) = r*w*w+p - hv_coef*d3_vals(I_WMOM)
+        flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
+      end do
+    end do
+    !$omp end parallel do
+    !$acc end parallel loop
+
+    !$acc parallel loop collapse(3) present(flux%mem, tendency%mem)
+    !$omp parallel do collapse(3) private(ll, k, i)
     do ll = 1, NVARS
-      do k = 1, nz_loc
+      do j = 1, 4
         do i = 1, nx
+          k = merge( ks(j), ks(j) - 1 , j < 3)
           !> Compute the tendency in z through flux differences
           tendency%mem(i,k,ll) = &
               -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
@@ -341,6 +403,9 @@ module module_types
     end do
     !$omp end parallel do
     !$acc end parallel loop
+
+
+
   end subroutine ztend
 
 
@@ -381,17 +446,21 @@ module module_types
       call system_clock(t_comm_start)
       do ll = 1, NVARS
         !$acc host_data use_device(s%mem)
-          ! SENDRECV DOWNWARDS
-          call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-          s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-          comm, MPI_STATUS_IGNORE, ierr &
-          )
+        ! SEND DOWNWARD: non-blocking send to prev_rank
+        call MPI_Isend(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
+                comm, requests(1), ierr)
 
-          ! SENDRECV UPWARDS
-          call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
-                  s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
-                  comm, MPI_STATUS_IGNORE, ierr &
-                  )
+        ! RECEIVE FROM prev_rank into bottom halo
+        call MPI_Irecv(s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE, prev_rank, 0, &
+                comm, requests(2), ierr)
+
+        ! SEND UPWARD: non-blocking send to next_rank
+        call MPI_Isend(s%mem(1-hs, nz_loc-1, ll), send_count, MPI_DOUBLE, next_rank, 0, &
+                comm, requests(3), ierr)
+
+        ! RECEIVE FROM next_rank into top halo
+        call MPI_Irecv(s%mem(1-hs, nz_loc+1, ll), send_count, MPI_DOUBLE, next_rank, 0, &
+                comm, requests(4), ierr)
         !$acc end host_data
       end do
       call system_clock(t_comm_end,rate)
