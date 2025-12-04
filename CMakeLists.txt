@@ -5,6 +5,7 @@ project(Best_Practice_HPC LANGUAGES Fortran)
 # Option to select backend: ON = OpenACC, OFF = OpenMP
 # -------------------------------------------------
 option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
+option(USE_CUDA    "Enable CUDA Fortran ONLY (GPU)" OFF)
 
 # -------------
 # Set compiler 
@@ -35,15 +36,16 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 # -------------------------------------------------
-# Logic for OpenMP vs OpenACC
+# Logic for OpenMP vs OpenACC vs CUDA
 # -------------------------------------------------
-if(NOT USE_OPENACC)
-    # CPU Branch
+if(USE_OPENACC)
+    message(STATUS "Building with OpenACC (GPU)")
+elseif(USE_CUDA)
+    # Ramo specifico per CUDA Fortran puro
+    message(STATUS "Building with CUDA Fortran (GPU)")
+else()
     find_package(OpenMP REQUIRED)
     message(STATUS "Building with OpenMP (CPU)")
-else()
-    # GPU Branch
-    message(STATUS "Building with OpenACC (GPU)")
 endif()
 
 find_package(MPI REQUIRED)
@@ -58,22 +60,34 @@ target_include_directories(model.x PRIVATE ${NETCDF_INCLUDE_DIR})
 # Compilation flags switch
 # -------------------------------------------------
 if(USE_OPENACC)
-    # Flags for OpenACC COMPILATION
+    # Flags for OpenACC
     target_compile_options(model.x PRIVATE
-        -Ofast -fPIC
-        ${NETCDF_FFLAGS}
-        -acc -gpu=cc80 -cuda
+            -Ofast -fPIC
+            ${NETCDF_FFLAGS}
+            -acc -gpu=cc80 -cuda -Mpreprocess
     )
-    #Flags for OpenACC LINKING
     target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
+
+elseif(USE_CUDA)
+    # <--- NUOVO BLOCCO PER CUDA ONLY --->
+    # Flags for CUDA Fortran Only (No -acc)
+    # Usiamo -Mpreprocess per garantire che #ifdef _CUDA venga letto
+    target_compile_options(model.x PRIVATE
+            -Ofast -fPIC
+            ${NETCDF_FFLAGS}
+            -cuda -gpu=cc80 -Mpreprocess
+    )
+    # Linker needs -cuda to find cudafor libraries
+    target_link_options(model.x PRIVATE -cuda -gpu=cc80)
+
 else()
     # Flags for OpenMP
     target_compile_options(model.x PRIVATE
-        -Ofast -fPIC
-        ${NETCDF_FFLAGS}
-        ${OpenMP_Fortran_FLAGS}
+            -Ofast -fPIC
+            ${NETCDF_FFLAGS}
+            ${OpenMP_Fortran_FLAGS}
+            -Mpreprocess
     )
-    #Flags for OpenMP LINKING
     target_link_libraries(model.x PRIVATE ${OpenMP_Fortran_FLAGS})
 endif()
 
@@ -85,15 +99,8 @@ target_link_directories(model.x PRIVATE ${NETCDF_LIB_DIR})
 # -------------------------------------------------
 # Link libraries switch
 # -------------------------------------------------
-if(USE_OPENACC)
-    target_link_libraries(model.x PRIVATE
+target_link_libraries(model.x PRIVATE
         ${NETCDF_FLIBS}
         MPI::MPI_Fortran
-    )
-else()
-    target_link_libraries(model.x PRIVATE
-        ${NETCDF_FLIBS}
-        MPI::MPI_Fortran
-    )
-endif()
+)
 
