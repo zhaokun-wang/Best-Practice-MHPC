@@ -9,11 +9,7 @@ module module_output
   use dimensions, only : nx, nz
   use iodir, only : stderr
   use netcdf
-#if defined(_CUDA_KERN)
-  use module_types_cuda, only : atmospheric_state, reference_state
-#else
   use module_types, only : atmospheric_state, reference_state
-#endif
   use mpi
 
   implicit none

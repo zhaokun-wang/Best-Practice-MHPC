@@ -5,8 +5,6 @@ project(Best_Practice_HPC LANGUAGES Fortran)
 # Option to select backend: ON = OpenACC, OFF = OpenMP
 # -------------------------------------------------
 option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
-option(USE_CUDA    "Enable CUDA Fortran ONLY (GPU)" OFF)
-
 # -------------
 # Set compiler
 # -------------
@@ -40,10 +38,6 @@ execute_process(
 # -------------------------------------------------
 if(USE_OPENACC)
     message(STATUS "Building with OpenACC (GPU)")
-elseif(USE_CUDA)
-    # Ramo specifico per CUDA Fortran puro
-    message(STATUS "Building with CUDA Fortran (GPU), add directive _CUDA_KERN")
-    add_compile_definitions(_CUDA_KERN)
 else()
     find_package(OpenMP REQUIRED)
     message(STATUS "Building with OpenMP (CPU)")
@@ -68,17 +62,6 @@ if(USE_OPENACC)
             -acc -gpu=cc80 -cuda -Mpreprocess
     )
     target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
-
-elseif(USE_CUDA)
-    # Flags for CUDA Fortran Only (No -acc)
-    target_compile_options(model.x PRIVATE
-            -Ofast -fPIC
-            ${NETCDF_FFLAGS}
-            -cuda -gpu=cc80 -Mpreprocess
-    )
-    # Linker needs -cuda to find cudafor libraries
-    target_link_options(model.x PRIVATE -cuda -gpu=cc80)
-
 else()
     # Flags for OpenMP
     target_compile_options(model.x PRIVATE
