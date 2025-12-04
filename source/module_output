@@ -4,16 +4,12 @@
 !! @brief model_output.f90 is the module containing all related to I/O of the simulation
 
 module module_output
-  use calculation_types, only : wp, iowp
+  use calculation_types, only : wp!, iowp
   use parallel_parameters, only : i_beg, k_beg, nz_loc, comm, rank, size, rest, base !**** PARALLEL ****
   use dimensions, only : nx, nz
-  use iodir, only : stderr
-  use netcdf
-#if defined(_CUDA)
-  use module_types_cuda, only : atmospheric_state, reference_state
-#else
   use module_types, only : atmospheric_state, reference_state
-#endif
+  use iodir, only : stderr
+  !use netcdf
   use mpi
 
   implicit none
