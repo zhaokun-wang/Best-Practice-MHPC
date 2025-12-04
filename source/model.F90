@@ -19,6 +19,10 @@ program atmosphere_model
   use cudafor
 #endif
 
+#ifdef _CUDA
+  use cudafor
+#endif
+
   implicit none
 
   !**** Variables declaration area ****
