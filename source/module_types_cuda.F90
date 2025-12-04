@@ -243,7 +243,7 @@ module module_types
     call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
-    if ( i >= 1 .and. i <= nx .and. k >= 1 .and. k <= nz_loc+1 ) then
+    if ( i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc) then
       do s = 1, STEN_SIZE
         stencil(s) = atmostat%mem(i,k-hs-1+s,ll)
       end do
@@ -271,6 +271,17 @@ module module_types
       flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
 
       !> Compute the tendency in z through flux differences
+      do j = 1, 4
+        do i = 1, nx
+          k = merge( ks(j), ks(j) - 1 , j < 3)
+          !> Compute the tendency in z through flux differences
+          tendency%mem(i,k,ll) = &
+              -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
+          if (ll == I_WMOM) then
+            tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
+          end if
+        end do
+      end do
       if ( k <= nz_loc ) then
         tendency%mem(i,k,ll) = -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
         if (ll == I_WMOM) then
