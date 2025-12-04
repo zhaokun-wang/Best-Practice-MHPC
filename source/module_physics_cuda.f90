@@ -1,4 +1,5 @@
-module module_physics
+module module_physics_cuda
+#ifdef _CUDA_KERN
   use calculation_types, only : wp
   use physical_constants
   use physical_parameters
@@ -7,7 +8,7 @@ module module_physics
   use legendre_quadrature
   use dimensions
   use iodir
-  use module_types
+  use module_types_cuda
   use mpi
   use cudafor
 
@@ -85,7 +86,6 @@ module module_physics
 
     call oldstat%new_state<<<grid_dims, block_dims>>>( )
     call oldstat%set_state<<<grid_dims, block_dims>>>(0.0_wp)
-
 
     call newstat%new_state<<<grid_dims, block_dims>>>( )
     call flux%new_flux<<<grid_dims, block_dims>>>( )
@@ -335,4 +335,5 @@ module module_physics
     T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
   end subroutine total_mass_energy
 
-end module module_physics
+#endif
+end module module_physics_cuda

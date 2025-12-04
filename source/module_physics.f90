@@ -7,12 +7,8 @@ module module_physics
   use legendre_quadrature
   use dimensions
   use iodir
-
-#if defined(_CUDA_KERN)
-  use module_types_cuda
-#else
   use module_types
-#endif
+
 
   use mpi
 

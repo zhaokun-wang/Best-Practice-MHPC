@@ -6,9 +6,15 @@
 program atmosphere_model
   !**** Module load area ****
   use calculation_types, only : wp
+
+#if defined(_CUDA_KERN)
+  use module_physics_cuda
+#else
   use module_physics, only : dt, oldstat, newstat, flux, tend, ref
   use module_physics, only : init, finalize
   use module_physics, only : rungekutta, total_mass_energy
+#endif
+
   use module_output, only : create_output, write_record, close_output
   use dimensions , only : sim_time, output_freq, init_dimensions
   use iodir, only : stdout
