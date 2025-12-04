@@ -4,17 +4,17 @@
 *Date* November 2025
 
 This programme simulates the evolution of a thermal bubble (vapour in dry air) driven by a potential temperature 
-difference relative to the background.It operates on a fixed 2D grid ($n_x, n_z$). The simulation duration and output 
-interval can be set to defaults or defined externally using a Fortran namelist (input.nml) implemented as shown below:
+difference relative to the background. It operates on a fixed 2D grid ($n_x, n_z$). The simulation duration and output 
+interval can be set to defaults (``sim_time=1000.0, output_freq=100.0``) or defined externally using a Fortran namelist (input.nml) implemented as shown below:
 
 ```text
 &input_params
-  sim_time = 5000.0
-  output_freq = 50.0
+  sim_time = 1000.0
+  output_freq = 100.0
 /
 ```
 the default parameters for the grid are $n_x=100$, $n_z$ is automatically computed to be half of $n_x$.
-To change this, mocify the ``integer, parameter nx `` in ``module_parameters.f90`` in the ``module dimension``.
+To change this, modify the ``integer, parameter nx `` in ``module_parameters.f90`` in the ``module dimension``.
 
 in order to execute the program so you can do:
 ```commandline
@@ -162,6 +162,9 @@ ncview output.nc
 - [x] Profiling
 - [x] README update of code how works
 - [x] Doxygen generation of docs
+- [x] Implementation of Non Blocking communication on MPI
+- [x] Benchmarks on non blocking communication on MPI
+- [ ] CUDA kernel version
 - [x] presentation
 
 ---
