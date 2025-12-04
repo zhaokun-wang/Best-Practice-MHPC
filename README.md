@@ -13,6 +13,8 @@ interval can be set to defaults or defined externally using a Fortran namelist (
   output_freq = 50.0
 /
 ```
+the default parameters for the grid are $n_x=100$, $n_z$ is automatically computed to be half of $n_x$.
+To change this, mocify the ``integer, parameter nx `` in ``module_parameters.f90`` in the ``module dimension``.
 
 in order to execute the program so you can do:
 ```commandline
@@ -27,7 +29,35 @@ in slurm script
 srun ./model.x <input.nml>
 ```
 
-at the end of the simulation, in the terminal will be printed the results of ``delta mass`` and ``delta energy`` in
+Remember that the code has been built with the idea of being runned in Leonardo cluster with a slurm job. In case of the default example a job script
+example is (MPI+OpenACC case with 1 NODE):
+
+```text
+#!/bin/bash
+#SBATCH --job-name=default_thermal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:30:00
+#SBATCH --gres=gpu:4
+#SBATCH --exclusive
+#SBATCH --account=<name_account>
+#SBATCH --partition=boost_usr_prod
+#SBATCH --output=slurm.out
+#SBATCH --error=slurm.err
+
+module load gcc
+module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
+module load nvhpc
+
+export OMP_NUM_THREADS=1
+
+srun --cpu-bind=cores build/./model.x 
+
+```
+The expected execution time in leonardo for the defult example is around ``5 seconds``, and the dimension of the otput is around ``16 MB``.
+
+At the end of the simulation, in the terminal will be printed the results of ``delta mass`` and ``delta energy`` in
 order to check the convergence. Also, you will find a ``output.nc`` file containing the results. 
 Example of output:
 
