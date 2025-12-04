@@ -4,15 +4,17 @@
 *Date* November 2025
 
 This programme simulates the evolution of a thermal bubble (vapour in dry air) driven by a potential temperature 
-difference relative to the background.It operates on a fixed 2D grid ($n_x, n_z$). The simulation duration and output 
-interval can be set to defaults or defined externally using a Fortran namelist (input.nml) implemented as shown below:
+difference relative to the background. It operates on a fixed 2D grid ($n_x, n_z$). The simulation duration and output 
+interval can be set to defaults (``sim_time=1000.0, output_freq=100.0``) or defined externally using a Fortran namelist (input.nml) implemented as shown below:
 
 ```text
 &input_params
-  sim_time = 5000.0
-  output_freq = 50.0
+  sim_time = 1000.0
+  output_freq = 100.0
 /
 ```
+the default parameters for the grid are $n_x=100$, $n_z$ is automatically computed to be half of $n_x$.
+To change this, modify the ``integer, parameter nx `` in ``module_parameters.f90`` in the ``module dimension``.
 
 in order to execute the program so you can do:
 ```commandline
@@ -27,7 +29,35 @@ in slurm script
 srun ./model.x <input.nml>
 ```
 
-at the end of the simulation, in the terminal will be printed the results of ``delta mass`` and ``delta energy`` in
+Remember that the code has been built with the idea of being runned in Leonardo cluster with a slurm job. In case of the default example a job script
+example is (MPI+OpenACC case with 1 NODE):
+
+```text
+#!/bin/bash
+#SBATCH --job-name=default_thermal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:30:00
+#SBATCH --gres=gpu:4
+#SBATCH --exclusive
+#SBATCH --account=<name_account>
+#SBATCH --partition=boost_usr_prod
+#SBATCH --output=slurm.out
+#SBATCH --error=slurm.err
+
+module load gcc
+module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
+module load nvhpc
+
+export OMP_NUM_THREADS=1
+
+srun --cpu-bind=cores build/./model.x 
+
+```
+The expected execution time in leonardo for the defult example is around ``5 seconds``, and the dimension of the otput is around ``16 MB``.
+
+At the end of the simulation, in the terminal will be printed the results of ``delta mass`` and ``delta energy`` in
 order to check the convergence. Also, you will find a ``output.nc`` file containing the results. 
 Example of output:
 
@@ -74,11 +104,11 @@ packages for running the code, make possible selecting between openMP and openAC
 flag and is automatically tested for working in Leonardo boost gpu architecture.
 In order to install the program the following steps are required:
 
-1. Create the build directory if not already present ``mkdir build; cd ..`` , prerequisites are: 
+1. Create the build directory if not already present ``mkdir build; cd build`` , prerequisites are: 
     - NetCDF4 mpi-hdf5 and fortran version 
     - fortran mpi compiler
-2. In case of leonardo, a very good compromise in terms of module in order to test both MPI+openMP and MPI+openACC
-version are the following:
+2. In case of leonardo, use this module in order to test both MPI+openMP and MPI+openACC
+version (nvidia compiler):
     ```text
     module load gcc
     module load netcdf-fortran/4.6.1--hpcx-mpi--2.19--nvhpc--24.5 
@@ -132,6 +162,9 @@ ncview output.nc
 - [x] Profiling
 - [x] README update of code how works
 - [x] Doxygen generation of docs
+- [x] Implementation of Non Blocking communication on MPI
+- [x] Benchmarks on non blocking communication on MPI
+- [ ] CUDA kernel version
 - [x] presentation
 
 ---
