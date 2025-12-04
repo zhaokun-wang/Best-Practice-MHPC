@@ -15,7 +15,7 @@ program atmosphere_model
   use mpi
   use parallel_parameters
 
-#if defined(_OPENACC) || defined(_CUDA)
+#if defined(_OPENACC) || defined(_CUDA_KERN)
   use cudafor
 #endif
 
@@ -30,7 +30,7 @@ program atmosphere_model
   real(wp) :: mass0, te0
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
-#ifdef _OPENACC
+#ifdef defined(_OPENACC) || defined(_CUDA_KERN)
   integer :: N_dev, dev_id, ierr_gpu
 #endif
 
@@ -50,7 +50,7 @@ program atmosphere_model
   prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
   next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
 
-#if defined(_OPENACC) || defined(_CUDA)
+#if defined(_OPENACC) || defined(_CUDA_KERN)
   !GPU
   ierr_gpu = cudaGetDeviceCount(N_dev)
   dev_id = mod(rank, N_dev)
