@@ -1,9 +1,11 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/model.x.dir/source/model.f90.o"
+  "CMakeFiles/model.x.dir/source/model.F90.o"
   "CMakeFiles/model.x.dir/source/module_output.F90.o"
   "CMakeFiles/model.x.dir/source/module_parameters.f90.o"
   "CMakeFiles/model.x.dir/source/module_physics.f90.o"
+  "CMakeFiles/model.x.dir/source/module_physics_cuda.f90.o"
   "CMakeFiles/model.x.dir/source/module_types.F90.o"
+  "CMakeFiles/model.x.dir/source/module_types_cuda.F90.o"
   "model.x"
   "model.x.pdb"
 )

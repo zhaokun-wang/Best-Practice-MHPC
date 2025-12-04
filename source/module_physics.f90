@@ -1,4 +1,5 @@
 module module_physics
+ #ifndef _CUDA_KERN
   use calculation_types, only : wp
   use physical_constants
   use physical_parameters
@@ -347,5 +348,6 @@ module module_physics
     call system_clock(t_comm_end, rate)
     T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
   end subroutine total_mass_energy
+#endif
 
 end module module_physics

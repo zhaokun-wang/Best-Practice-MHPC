@@ -32,6 +32,10 @@ FILE(REMOVE
   "MODULE_TYPES.mod"
   "CMakeFiles/model.x.dir/module_types.mod.stamp"
 
+  "module_types_cuda.mod"
+  "MODULE_TYPES_CUDA.mod"
+  "CMakeFiles/model.x.dir/module_types_cuda.mod.stamp"
+
   "parallel_parameters.mod"
   "PARALLEL_PARAMETERS.mod"
   "CMakeFiles/model.x.dir/parallel_parameters.mod.stamp"

@@ -1,5 +1,7 @@
+
+!> @brief Module containing object orientation to "satisfy the eye"
 module module_types_cuda
-#ifdef _CUDA_KERN
+  #ifdef _CUDA_KERN
   use physical_constants
   use physical_parameters
   use parallel_parameters
@@ -162,8 +164,7 @@ module module_types_cuda
     class(atmospheric_state), device, intent(in) :: s0
     class(atmospheric_tendency), device, intent(in) :: tend
     real(wp), intent(in) :: dt
-    ! NOTA MHPC: Mancano indici i, k, ll qui, assumo siano calcolati o passati nel contesto reale
-    ! Se questo è un device routine chiamato da un kernel, ok.
+
     if ( i >= 1 .and. i <= nx .and. k >= 1 .and. k <= nz_loc ) then
       s2%mem(i,k,ll) = s0%mem(i,k,ll) + dt * tend%mem(i,k,ll)
     end if
@@ -188,8 +189,7 @@ module module_types_cuda
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
 
-    ! MHPC FIX: Chiamata statica diretta invece di atmostat%exchange_halo_x()
-    call exchange_halo_x(atmostat) 
+    call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
 
     hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
     if ( i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc ) then
@@ -201,14 +201,14 @@ module module_types_cuda
                  + 7.0_wp * stencil(3)/12.0_wp &
                  - 1.0_wp * stencil(4)/12.0_wp
       d3_vals(ll) = - 1.0_wp * stencil(1) & !< Numerical dissipation prop to 3rd derivative
-                    + 3.0_wp * stencil(2) &
-                    - 3.0_wp * stencil(3) &
-                    + 1.0_wp * stencil(4)
+                  + 3.0_wp * stencil(2) &
+                  - 3.0_wp * stencil(3) &
+                  + 1.0_wp * stencil(4)
 
       r = vals(I_DENS) + ref%density(k)  !< Total density
-      u = vals(I_UMOM) / r                !< Velocity in x
-      w = vals(I_WMOM) / r                !< Velocity in z
-      t = ( vals(I_RHOT) + ref%denstheta(k) ) / r    !< Temperature
+      u = vals(I_UMOM) / r               !< Velocity in x
+      w = vals(I_WMOM) / r               !< Velocity in z
+      t = ( vals(I_RHOT) + ref%denstheta(k) ) / r   !< Temperature
       p = c0*(r*t)**cdocv !< Equation of state, pressure
       !> Physical fluxes + dissipation terms
       flux%dens(i,k) = r*u - hv_coef*d3_vals(I_DENS)
@@ -242,9 +242,7 @@ module module_types_cuda
     real(wp), dimension(NVARS) :: d3_vals, vals
 
 
-    ! MHPC FIX: Chiamata statica diretta
-    ! NOTA: exchange_halo_z contiene MPI, fallirà su device, vedi soluzione ottimale.
-    call exchange_halo_z(atmostat, ref)
+    call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
     if ( i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc) then
@@ -255,15 +253,15 @@ module module_types_cuda
                + 7.0_wp * stencil(2)/12.0_wp &
                + 7.0_wp * stencil(3)/12.0_wp &
                - 1.0_wp * stencil(4)/12.0_wp
-      d3_vals(ll) = - 1.0_wp * stencil(1) &    !< Numerical dissipation prop to 3rd derivative
+      d3_vals(ll) = - 1.0_wp * stencil(1) &   !< Numerical dissipation prop to 3rd derivative
                     + 3.0_wp * stencil(2) & 
-                    - 3.0_wp * stencil(3) & 
+                    - 3.0_wp * stencil(3) &
                     + 1.0_wp * stencil(4)
       r = vals(I_DENS) + ref%idens(k)  !< Total density
       u = vals(I_UMOM) / r             !< Total velocity in x
       w = vals(I_WMOM) / r             !< Total velocity in z
-      t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r    !< Temperature
-      p = c0*(r*t)**cdocv - ref%pressure(k)           !< Equation of state, pressure
+      t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
+      p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
       if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
         w = 0.0_wp
         d3_vals(I_DENS) = 0.0_wp
@@ -322,10 +320,6 @@ module module_types_cuda
         integer(8) :: rate
         integer :: send_count = 2 * (nx + 2 * hs)
 
-        ! ATTENZIONE: MPI CALLS ON DEVICE ARE INVALID IN STANDARD CUDA FORTRAN
-        ! Questo codice compila solo perché il compilatore potrebbe non validare le interfacce MPI all'interno
-        ! di attributi device finché non linka, ma crasherà a runtime.
-        
         !PARALLEL COMMUNICATION DONE AT THE BEGINNING
         call system_clock(t_comm_start)
         ! SENDRECV DOWNWARDS
@@ -364,6 +358,9 @@ module module_types_cuda
 
     !> LAST BOUNDARY UPDATE
     if (rank == size - 1) then
+        if ( condition ) then
+            
+        end if
         do i = 1-hs,nx+hs
           if (ll == I_WMOM) then
             !> Vertical velocities are set to 0
@@ -381,18 +378,19 @@ module module_types_cuda
             s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll)
           end if
         end do
-      end if
+      end do
       !$acc end parallel loop
       !$omp end parallel do
     end if
 
 
       !Sync of ranks
-      ! call MPI_BARRIER(comm, ierr)
+     ! call MPI_BARRIER(comm, ierr)
 
   end subroutine exchange_halo_z
 
-! ... (resto delle subroutine new/del invariate)
+    !> @brief Instantiates a new reference state
+    !> @param[inout] ref New reference state to be allocated memory to
   subroutine new_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
@@ -406,6 +404,8 @@ module module_types_cuda
     !$acc enter data attach(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
   end subroutine new_ref
 
+    !> @brief Delete existing reference state
+    !> @param[inout] ref Reference state whose memory should be deallocated
   subroutine del_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
@@ -419,6 +419,8 @@ module module_types_cuda
     deallocate(ref%pressure)
   end subroutine del_ref
 
+    !> @brief Instantiates a new flux object
+    !> @param[inout] flux Flux object which should be initialized
   subroutine new_flux(flux)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
@@ -433,6 +435,9 @@ module module_types_cuda
     !$acc enter data attach(flux%mem)
   end subroutine new_flux
 
+    !> @brief Set an existing flux object to a given value
+    !> @param[inout] flux Flux object whose value should be reassigned
+    !> @param[int] xval New value to be assigned
     subroutine set_flux(flux, xval)
       implicit none
       class(atmospheric_flux), intent(inout) :: flux
@@ -455,6 +460,8 @@ module module_types_cuda
       !$acc end parallel loop
     end subroutine set_flux
 
+    !> @brief Deallocate an existing flux object
+    !> @param[inout] flux Object which should be deallocated
   subroutine del_flux(flux)
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
@@ -470,6 +477,8 @@ module module_types_cuda
     nullify(flux%rhot)
   end subroutine del_flux
 
+    !> @brief Allocate memory to a tendency object
+    !> @param[inout] tend New tendency object which should be initialized
   subroutine new_tendency(tend)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
@@ -484,6 +493,9 @@ module module_types_cuda
     !$acc enter data attach(tend%mem)
   end subroutine new_tendency
 
+    !> @brief Set an existing tendency object to a given value
+    !> @param[inout] tend Tendency object whose value should be reassigned
+    !> @param[int] xval New value to be assigned
     subroutine set_tendency(tend, xval)
       implicit none
       class(atmospheric_tendency), intent(inout) :: tend
@@ -506,6 +518,8 @@ module module_types_cuda
       !$acc end parallel loop
     end subroutine set_tendency
 
+    !> @brief Deallocate an existing tendency object
+    !> @param[inout] tend Object which should be deallocated
   subroutine del_tendency(tend)
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
@@ -521,6 +535,9 @@ module module_types_cuda
     nullify(tend%rhot)
   end subroutine del_tendency
 
+    !> @brief Assigment operator for atmospheric states
+    !> @param[inout] x Atmospheric state to be assigned a new value to
+    !> @param[in] y Atmospheric state whose value is taken to be assigned
     subroutine state_equal_to_state(x,y)
       implicit none
       type(atmospheric_state), intent(inout) :: x

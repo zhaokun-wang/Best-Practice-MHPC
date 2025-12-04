@@ -8,6 +8,7 @@ provides
  module_output.mod
  module_physics.mod
  module_types.mod
+ module_types_cuda.mod
  parallel_parameters.mod
  physical_constants.mod
  physical_parameters.mod

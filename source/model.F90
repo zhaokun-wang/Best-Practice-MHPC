@@ -36,7 +36,7 @@ program atmosphere_model
   real(wp) :: mass0, te0
   real(wp) :: mass1, te1
   integer(8) :: t1, t2, rate
-#ifdef defined(_OPENACC) || defined(_CUDA_KERN)
+#if defined(_OPENACC) || defined(_CUDA_KERN)
   integer :: N_dev, dev_id, ierr_gpu
 #endif
 

@@ -104,8 +104,59 @@ end module iodir
 !! @var k_beg :: is the beginning index of physical array ...
 !! @var hs    :: is the dimension left/right of halo (column to exchange)-> two left two right
 module parallel_parameters
+        #ifdef _CUDA_KERN
+           use cudafor
+        #endif
+
   implicit none
   public
+    integer :: requests(4)
+#ifdef _CUDA_KERN
+  type(dim3) :: block_dims, grid_dims
+! --- Esclusi i PARAMETER (i_beg, hs) che sono costanti ---
+
+! Variabili intere semplici
+integer, device, pointer :: k_beg => null()
+
+! Variabili MPI
+integer, device, pointer :: ierr => null()
+integer, device, pointer :: rank => null()
+integer, device, pointer :: size => null()
+integer, device, pointer :: comm => null()
+integer, device, pointer :: prev_rank => null()
+integer, device, pointer :: next_rank => null()
+
+! Variabili di dominio
+integer, device, pointer :: z_local => null()
+integer, device, pointer :: z_global => null()
+integer, device, pointer :: nz_loc => null()
+integer, device, pointer :: base => null()
+integer, device, pointer :: rest => null()
+
+! Timer (REAL come nell'originale)
+real, device, pointer :: T_compute => null()
+real, device, pointer :: T_communicate => null()
+real, device, pointer :: T_init => null()
+real, device, pointer :: T_output => null()
+real, device, pointer :: T_compute_total => null()
+real, device, pointer :: T_communicate_total => null()
+real, device, pointer :: T_init_total => null()
+real, device, pointer :: T_output_total => null()
+
+! Timer precisi (INTEGER(8) come nell'originale)
+integer(8), device, pointer :: t_start => null()
+integer(8), device, pointer :: t_end => null()
+integer(8), device, pointer :: t_comm_start => null()
+integer(8), device, pointer :: t_comm_end => null()
+
+! Indici loop (ATTENZIONE: Estremamente rischioso su GPU se usati globalmente)
+integer, device, pointer :: i => null()
+integer, device, pointer :: k => null()
+integer, device, pointer :: ll => null()
+
+  integer, parameter :: i_beg=1
+  integer, parameter :: hs = 2
+#else
   integer, parameter :: i_beg=1
   integer :: k_beg
   integer, parameter :: hs = 2
@@ -114,8 +165,8 @@ module parallel_parameters
   real :: T_compute, T_communicate, T_init, T_output, T_compute_total, T_communicate_total, T_init_total, T_output_total
   integer(8) :: t_start, t_end, t_comm_start, t_comm_end
   integer :: i, k, ll
-  integer :: requests(4)
-  type(dim3) :: block_dims, grid_dims
+#endif
+
 end module parallel_parameters
 
 !>
