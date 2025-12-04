@@ -1,0 +1,29 @@
+python3 nccmp3.py output_serial.nc output_mpi.nc output_openMP.nc
+#################
+Var Name            :  |1-2|                 ,  |2-3|                 ,  |2-3|/|1-2|
+/mnt/Data/MHPC/Best-Practice-MHPC/data/nccmp3.py:88: RuntimeWarning: invalid value encountered in scalar divide
+  ":  %20.10e  ,  %20.10e  ,  %20.10e"%(norm12,norm23,norm23/norm12))
+rho                 :      0.0000000000e+00  ,      0.0000000000e+00  ,                   nan
+u                   :      0.0000000000e+00  ,      0.0000000000e+00  ,                   nan
+w                   :      0.0000000000e+00  ,      0.0000000000e+00  ,                   nan
+theta               :      0.0000000000e+00  ,      0.0000000000e+00  ,                   nan
+#################
+ 🐍 netCDF4  15:30:48 - everaldi@slimbook  ~/MHPC/Best-Practice-MHPC/data   devel-EV ±  python3 nccmp3.py output_serial.nc output_mpi.nc output_openACC.nc
+#################
+Var Name            :  |1-2|                 ,  |2-3|                 ,  |2-3|/|1-2|
+/mnt/Data/MHPC/Best-Practice-MHPC/data/nccmp3.py:88: RuntimeWarning: divide by zero encountered in scalar divide
+  ":  %20.10e  ,  %20.10e  ,  %20.10e"%(norm12,norm23,norm23/norm12))
+rho                 :      0.0000000000e+00  ,      2.2340963923e-25  ,                   inf
+u                   :      0.0000000000e+00  ,      1.1549548376e-26  ,                   inf
+w                   :      0.0000000000e+00  ,      7.4351701852e-27  ,                   inf
+theta               :      0.0000000000e+00  ,      2.3085798522e-26  ,                   inf
+#################
+ 🐍 netCDF4  15:30:58 - everaldi@slimbook  ~/MHPC/Best-Practice-MHPC/data   devel-EV ±  python3 nccmp3.py output_openMP.nc output_mpi.nc output_openACC.nc
+#################
+Var Name            :  |1-2|                 ,  |2-3|                 ,  |2-3|/|1-2|
+/mnt/Data/MHPC/Best-Practice-MHPC/data/nccmp3.py:88: RuntimeWarning: divide by zero encountered in scalar divide
+  ":  %20.10e  ,  %20.10e  ,  %20.10e"%(norm12,norm23,norm23/norm12))
+rho                 :      0.0000000000e+00  ,      2.2340963923e-25  ,                   inf
+u                   :      0.0000000000e+00  ,      1.1549548376e-26  ,                   inf
+w                   :      0.0000000000e+00  ,      7.4351701852e-27  ,                   inf
+theta               :      0.0000000000e+00  ,      2.3085798522e-26  ,                   inf

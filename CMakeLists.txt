@@ -6,9 +6,9 @@ project(Best_Practice_HPC LANGUAGES Fortran)
 # -------------------------------------------------
 option(USE_OPENACC "Enable OpenACC build (GPU). If OFF, uses OpenMP (CPU)" OFF)
 
-# -------------------------------------------------
-# Set compiler (Original bad practice kept as requested)
-# -------------------------------------------------
+# -------------
+# Set compiler 
+# -------------
 set(CMAKE_Fortran_COMPILER nvfortran)
 
 find_program(NF_CONFIG_EXEC nf-config REQUIRED)
@@ -62,7 +62,7 @@ if(USE_OPENACC)
     target_compile_options(model.x PRIVATE
         -Ofast -fPIC
         ${NETCDF_FFLAGS}
-        -acc -gpu=managed -cuda
+        -acc -gpu=cc80 -cuda
     )
     #Flags for OpenACC LINKING
     target_link_options(model.x PRIVATE -acc -gpu=cc80 -cuda)
