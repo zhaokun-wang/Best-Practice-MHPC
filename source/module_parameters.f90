@@ -115,6 +115,7 @@ module parallel_parameters
   integer(8) :: t_start, t_end, t_comm_start, t_comm_end
   integer :: i, k, ll
   integer :: requests(4)
+  type(dim3) :: block_dims, grid_dims
 end module parallel_parameters
 
 !>
@@ -148,6 +149,7 @@ module dimensions
   use physical_parameters, only : zlen, xlen
   use indexing
   use parallel_parameters, only : rank
+  use cudafor
   implicit none
   public
   integer, parameter :: nx = 100
