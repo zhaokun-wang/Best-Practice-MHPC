@@ -1,1 +1,0 @@
-/usr/bin/mpif90 CMakeFiles/model.x.dir/source/model.f90.o CMakeFiles/model.x.dir/source/module_output.F90.o CMakeFiles/model.x.dir/source/module_parameters.f90.o CMakeFiles/model.x.dir/source/module_physics.f90.o CMakeFiles/model.x.dir/source/module_types.F90.o -o model.x  -L/usr/local/lib -lnetcdff -L/usr/lib/x86_64-linux-gnu -lnetcdf -lnetcdf -lm 
