@@ -113,6 +113,7 @@ module parallel_parameters
   integer :: z_local, z_global, nz_loc, base, rest !< Initialized in init
   real :: T_compute, T_communicate, T_init, T_output, T_compute_total, T_communicate_total, T_init_total, T_output_total
   integer(8) :: t_start, t_end, t_comm_start, t_comm_end
+  integer :: requests(4)
 end module parallel_parameters
 
 !>
@@ -148,7 +149,7 @@ module dimensions
   use parallel_parameters, only : rank
   implicit none
   public
-  integer, parameter :: nx = 100
+  integer, parameter :: nx = 2000
   integer, parameter :: nz = int(nx * zlen/xlen)
   real(wp) :: sim_time = 1000.0_wp
   real(wp) :: output_freq = 10.0_wp
