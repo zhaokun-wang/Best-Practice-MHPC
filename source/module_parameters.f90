@@ -149,7 +149,7 @@ module dimensions
   use parallel_parameters, only : rank
   implicit none
   public
-  integer, parameter :: nx = 100
+  integer, parameter :: nx = 2000
   integer, parameter :: nz = int(nx * zlen/xlen)
   real(wp) :: sim_time = 1000.0_wp
   real(wp) :: output_freq = 10.0_wp
