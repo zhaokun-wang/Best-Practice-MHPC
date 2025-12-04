@@ -143,6 +143,7 @@ module module_types
           end do
         end do
       end do
+      !$acc end parallel loop
     end subroutine set_state
 
     !> @brief Deletes existing atmospheric state
@@ -282,6 +283,7 @@ module module_types
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
     integer, dimension(4) :: ks
+    integer(8) :: rate
 
     ks = [1, 2, nz_loc, nz_loc + 1]
 
@@ -289,7 +291,7 @@ module module_types
 
     hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
 
-    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
+    !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem, ref%pressure) &
     !$acc private(stencil, vals, d3_vals)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
@@ -344,11 +346,18 @@ module module_types
     !$omp end parallel do
     !$acc end parallel loop
 
+
+    call system_clock(t_comm_start)
+
     !WAIT for Isend-Irecv to be done to compute also boundaries
     call MPI_Waitall(4, requests, MPI_STATUSES_IGNORE, ierr)
 
+    call system_clock(t_comm_end,rate)
+      T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
+
+
     !$acc parallel loop collapse(2) present(atmostat%mem, ref%density, ref%denstheta, flux%mem) &
-    !$acc private(stencil, vals, d3_vals, ks)
+    !$acc private(stencil, vals, d3_vals) copyin(ks)
     !$omp parallel do collapse(2) default(shared) &
     !$omp private(ll, s, stencil, vals, d3_vals, r, u, w, t, p)
     do j = 1, 4
@@ -386,7 +395,7 @@ module module_types
     !$omp end parallel do
     !$acc end parallel loop
 
-    !$acc parallel loop collapse(3) present(flux%mem, tendency%mem)
+    !$acc parallel loop collapse(3) present(flux%mem, tendency%mem) copyin(ks) 
     !$omp parallel do collapse(3) private(ll, k, i)
     do ll = 1, NVARS
       do j = 1, 4

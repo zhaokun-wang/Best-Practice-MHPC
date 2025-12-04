@@ -1,6 +1,6 @@
 reset
 set terminal pngcairo size 1200,600 enhanced font 'Arial,12'
-set output 'performance.png'
+set output 'performance1.png'
 
 # 设置柱状图样式
 set style data histograms
@@ -10,7 +10,7 @@ set style fill solid border -1
 set boxwidth 0.6
 
 # 设置坐标轴
-set title "Pure MPI(size 2000 * 1000)"
+set title "Pure MPI(size 400 * 200)"
 set xlabel "Number of Nodes"
 set ylabel "Time (s)"
 set grid ytics
@@ -19,7 +19,7 @@ set grid ytics
 set key outside
 
 # 绘图
-plot 'time.txt' using 3:xtic(1) title "T_init", \
+plot 'time1.txt' using 3:xtic(1) title "T_init", \
      '' using 4 title "T_compute", \
      '' using 5 title "T_communicate", \
      '' using 6 title "T_output"
