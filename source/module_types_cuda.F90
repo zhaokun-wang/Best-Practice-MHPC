@@ -51,19 +51,20 @@ module module_types_cuda
     procedure, public :: exchange_halo_x
   end type atmospheric_state
 
-  type atmospheric_state_host
-    real(wp), pointer, dimension(:,:,:) :: mem => null()
-    real(wp), pointer, dimension(:,:) :: dens
-    real(wp), pointer, dimension(:,:) :: umom
-    real(wp), pointer, dimension(:,:) :: wmom
-    real(wp), pointer, dimension(:,:) :: rhot
-    contains
-    procedure, public :: new_state
-    procedure, public :: set_state
-    procedure, public :: del_state
-    procedure, public :: update
-    procedure, public :: exchange_halo_x
-  end type atmospheric_state
+  
+  !type atmospheric_state_host
+  !  real(wp), pointer, dimension(:,:,:) :: mem => null()
+  !  real(wp), pointer, dimension(:,:) :: dens
+  !  real(wp), pointer, dimension(:,:) :: umom
+  !  real(wp), pointer, dimension(:,:) :: wmom
+  !  real(wp), pointer, dimension(:,:) :: rhot
+  !  contains
+  !  procedure, public :: new_state
+  !  procedure, public :: set_state
+  ! procedure, public :: del_state
+  !  procedure, public :: update
+  !  procedure, public :: exchange_halo_x
+  !end type atmospheric_state
 
   !> @brief Flux computed at volume interfaces
   type atmospheric_flux
@@ -342,72 +343,51 @@ module module_types_cuda
     endif
   end subroutine exchange_halo_z_device
 
-  subroutine exchange_halo_z_mpi(s_host, s_device)
+  subroutine exchange_halo_z_mpi(s)
     use mpi
+    use cudafor
     implicit none
-    type(atmospheric_state_host), intent(inout) :: s_host
-    type(atmospheric_state), intent(inout) :: s_device
-
-    integer :: send_count, ierr
-    integer :: i, ll, count
+    !type(atmospheric_state_host), intent(inout) :: s_host
+    type(atmospheric_state), intent(inout) :: s
+    integer :: send_count
+    integer :: ierr
     integer :: prev_rank, next_rank
-    integer :: mpi_wp
-    integer :: comm_local
-
+    !integer :: mpi_wp
+    !integer :: comm_local
+    !integer :: status(MPI_STATUS_SIZE)
     real(wp), allocatable, target, dimension(:) :: send_buffer_down, send_buffer_up
     real(wp), allocatable, target, dimension(:) :: recv_buffer_down, recv_buffer_up
+    prev_rank = merge(rank - 1, MPI_PROC_NULL, rank /= 0 )
+    next_rank = merge(rank + 1, MPI_PROC_NULL, rank /= size - 1)
 
-elem_count = nx + 2*hs
-  send_count_per_var = elem_count
-  send_count = send_count_per_var * NVARS
-
+    send_count = 2 * (nx + 2 * hs)
   ! Allocate host buffers (contiguous)
   allocate(send_buffer_down(send_count))
   allocate(send_buffer_up(send_count))
   allocate(recv_buffer_down(send_count))
   allocate(recv_buffer_up(send_count))
 
-  ! determine neighbor ranks (use MPI_PROC_NULL at domain boundaries)
-  prev_rank = rank - 1
-  if (prev_rank < 0) prev_rank = MPI_PROC_NULL
-  next_rank = rank + 1
-  if (next_rank > size - 1) next_rank = MPI_PROC_NULL
-
-  ! MPI datatype for real(wp) - use double precision MPI constant
-  mpi_wp = MPI_DOUBLE_PRECISION
-
-  ! compute bytes to copy for one i-line (elem_count elements of real(wp))
-  bytes = elem_count * c_sizeof(send_buffer_down(1))
-
-  ! 1. 从 device 直接拷贝 halo 发出行到 host 发送缓冲区 (Device -> Host)
-  !    我们对每个变量 ll 单独拷贝一条连续的 i-range（在 Fortran 中这是连续内存）
   do ll = 1, NVARS
-    count = (ll-1)*elem_count + 1
-    call cudaMemcpy(send_buffer_down(count), s_device%mem(1-hs, 1, ll), bytes, cudaMemcpyDeviceToHost)
-    call cudaMemcpy(send_buffer_up(count),   s_device%mem(1-hs, nz_loc, ll), bytes, cudaMemcpyDeviceToHost)
+    ierr = cudaMemcpy(send_buffer_down, s%mem(1-hs, 1, ll), send_count*8, cudaMemcpyDeviceToHost)
+    ierr = cudaMemcpy(send_buffer_up, s%mem(1-hs, nz_loc, ll), send_count*8, cudaMemcpyDeviceToHost)
+
+    ! SENDRECV DOWNWARDS
+    call MPI_Sendrecv(send_buffer_down, send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+    recv_buffer_down, send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
+    comm, MPI_STATUS_IGNORE, ierr &
+    )
+
+    ! SENDRECV UPWARDS
+    call MPI_Sendrecv(send_buffer_up, send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
+    recv_buffer_up, send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
+    comm, MPI_STATUS_IGNORE, ierr &
+    )
+    ierr = cudaMemcpy(s%mem(1-hs, -1, ll), recv_buffer_down, send_count*8, cudaMemcpyHostToDevice)
+    ierr = cudaMemcpy(s%mem(1-hs, -1, ll), recv_buffer_up, send_count*8, cudaMemcpyHostToDevice)
+
   end do
-
-    call MPI_Sendrecv(send_buffer_down, send_count, mpi_wp, &
-                      prev_rank, 0, &
-                      recv_buffer_down, send_count, mpi_wp, &
-                      prev_rank, 0, &
-                      comm, MPI_STATUS_IGNORE, ierr)
-
-    call MPI_Sendrecv(send_buffer_up, send_count, mpi_wp, &
-                      next_rank, 0, &
-                      recv_buffer_up, send_count, mpi_wp, &
-                      next_rank, 0, &
-                      comm, MPI_STATUS_IGNORE, ierr)
-
-    do ll = 1, NVARS
-      do j = 1, hs
-        count = (ll-1)*elem_count + 1
-        call cudaMemcpy(s_device%mem(1-hs, j-hs, ll), recv_buffer_down(count), bytes, cudaMemcpyHostToDevice)
-        call cudaMemcpy(s_device%mem(1-hs, nz_loc+j-hs, ll), recv_buffer_up(count), bytes, cudaMemcpyHostToDevice)
-      end do
-    end do
-    deallocate(send_buffer_down, send_buffer_up)
-    deallocate(recv_buffer_down, recv_buffer_up)
+  deallocate(send_buffer_down, send_buffer_up)
+  deallocate(recv_buffer_down, recv_buffer_up)
 
   end subroutine exchange_halo_z_mpi
 
