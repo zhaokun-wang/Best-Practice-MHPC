@@ -1,7 +1,5 @@
-
-!> @brief Module containing object orientation to "satisfy the eye"
 module module_types_cuda
-  #ifdef _CUDA_KERN
+#ifdef _CUDA_KERN
   use physical_constants
   use physical_parameters
   use parallel_parameters
@@ -18,22 +16,20 @@ module module_types_cuda
 
   public :: reference_state
   public :: atmospheric_state
+  public :: atmospheric_state_host
   public :: atmospheric_flux
   public :: atmospheric_tendency
+  public :: exchange_halo_z_mpi
+  public :: exchange_halo_z_device
 
   public :: assignment(=)
 
   !> @brief Reference state (Initial + boundary conditions)
   type reference_state
-    !> Density
     real(wp), device, allocatable, dimension(:) :: density
-    !> Density * Theta
     real(wp), device, allocatable, dimension(:) :: denstheta
-    !> Initial density
     real(wp), device, allocatable, dimension(:) :: idens
-    !> Initial density * theta
     real(wp), device, allocatable, dimension(:) :: idenstheta
-    !> Pressure
     real(wp), device, allocatable, dimension(:) :: pressure
     contains
     procedure, public :: new_ref
@@ -42,66 +38,64 @@ module module_types_cuda
 
   !> @brief Atmospheric state to be evolved
   type atmospheric_state
-    !> Backing storage for data (first two entries are x and z directions, last one is the array containing dens, umom, wmom and rhot)
-    real(wp), device, pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
+    real(wp), device, pointer, dimension(:,:,:) :: mem => null()
     real(wp), device, pointer, dimension(:,:) :: dens
-    !> Current horizontal velocity
     real(wp), device, pointer, dimension(:,:) :: umom
-    !> Current vertical velocity
     real(wp), device, pointer, dimension(:,:) :: wmom
-    !> Rho theta value
     real(wp), device, pointer, dimension(:,:) :: rhot
-    !> same data array in GPU
     contains
-    procedure,  public :: new_state
-    procedure,  public :: set_state
-    procedure,  public :: del_state
-    procedure,  public :: update
-    procedure,  public :: exchange_halo_x
-    procedure,  public :: exchange_halo_z
+    procedure, public :: new_state
+    procedure, public :: set_state
+    procedure, public :: del_state
+    procedure, public :: update
+    procedure, public :: exchange_halo_x
+  end type atmospheric_state
+
+  type atmospheric_state_host
+    real(wp), pointer, dimension(:,:,:) :: mem => null()
+    real(wp), pointer, dimension(:,:) :: dens
+    real(wp), pointer, dimension(:,:) :: umom
+    real(wp), pointer, dimension(:,:) :: wmom
+    real(wp), pointer, dimension(:,:) :: rhot
+    contains
+    procedure, public :: new_state
+    procedure, public :: set_state
+    procedure, public :: del_state
+    procedure, public :: update
+    procedure, public :: exchange_halo_x
   end type atmospheric_state
 
   !> @brief Flux computed at volume interfaces
   type atmospheric_flux
-    !> Backing storage for flux data
-    real(wp), device, pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
+    real(wp), device, pointer, dimension(:,:,:) :: mem => null()
     real(wp), device, pointer, dimension(:,:) :: dens
-    !> Horizontal velocity
     real(wp), device, pointer, dimension(:,:) :: umom
-    !> Vertical velocity
     real(wp), device, pointer, dimension(:,:) :: wmom
-    !> Rho theta value
     real(wp), device, pointer, dimension(:,:) :: rhot
     contains
-    procedure,  public :: new_flux
-    procedure,  public :: set_flux
-    procedure,  public :: del_flux
+    procedure, public :: new_flux
+    procedure, public :: set_flux
+    procedure, public :: del_flux
   end type atmospheric_flux
-  !> @brief Tendency used to update the stat
+
+  !> @brief Tendency used to update the state
   type atmospheric_tendency
-    !> Backing storage data for tendency
-    real(wp), device, pointer, dimension(:,:,:) :: mem => null( )
-    !> Density
+    real(wp), device, pointer, dimension(:,:,:) :: mem => null()
     real(wp), device, pointer, dimension(:,:) :: dens
-    !> Horizontal velocity
     real(wp), device, pointer, dimension(:,:) :: umom
-    !> Vertical velocity
     real(wp), device, pointer, dimension(:,:) :: wmom
-    !> Rho theta value
     real(wp), device, pointer, dimension(:,:) :: rhot
     contains
-    procedure,  public :: new_tendency
-    procedure,  public :: set_tendency
-    procedure,  public :: del_tendency
-    procedure,  public :: xtend
-    procedure,  public :: ztend
+    procedure, public :: new_tendency
+    procedure, public :: set_tendency
+    procedure, public :: del_tendency
+    procedure, public :: xtend
+    procedure, public :: ztend
   end type atmospheric_tendency
-  !> Interface implementing the assignment operator between atmospheric states
+
   interface assignment(=)
     module procedure state_equal_to_state
-  end interface assignment(=)
+  end interface
 
   contains
 
@@ -164,7 +158,11 @@ module module_types_cuda
     class(atmospheric_state), device, intent(in) :: s0
     class(atmospheric_tendency), device, intent(in) :: tend
     real(wp), intent(in) :: dt
-
+    integer :: i, k, ll
+    i = blockIdx%x * blockDim%x + threadIdx%x
+    k = blockIdx%y * blockDim%y + threadIdx%y
+    ll = blockIdx%z * blockDim%z + threadIdx%z
+    
     if ( i >= 1 .and. i <= nx .and. k >= 1 .and. k <= nz_loc ) then
       s2%mem(i,k,ll) = s0%mem(i,k,ll) + dt * tend%mem(i,k,ll)
     end if
@@ -184,15 +182,19 @@ module module_types_cuda
     class(reference_state), device, intent(in) :: ref
     class(atmospheric_state), device, intent(inout) :: atmostat
     real(wp), intent(in) :: dx, dt
-    integer :: s
+    integer :: s, i, k, ll
     real(wp) :: r, u, w, t, p, hv_coef
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
-
-    call atmostat%exchange_halo_x( ) !< Load the interior values into halos in x
-
-    hv_coef = -hv_beta * dx / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
-    if ( i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc ) then
+    
+    i = blockIdx%x * blockDim%x + threadIdx%x - hs
+    k = blockIdx%y * blockDim%y + threadIdx%y
+    ll = blockIdx%z * blockDim%z + threadIdx%z
+    
+    call exchange_halo_x(atmostat)
+    
+    hv_coef = -hv_beta * dx / (16.0_wp*dt)
+    if (i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc) then
       do s = 1, STEN_SIZE
         stencil(s) = atmostat%mem(i-hs-1+s,k,ll) !< Collecting neighbor values in the stencil
       end do
@@ -201,34 +203,28 @@ module module_types_cuda
                  + 7.0_wp * stencil(3)/12.0_wp &
                  - 1.0_wp * stencil(4)/12.0_wp
       d3_vals(ll) = - 1.0_wp * stencil(1) & !< Numerical dissipation prop to 3rd derivative
-                  + 3.0_wp * stencil(2) &
-                  - 3.0_wp * stencil(3) &
-                  + 1.0_wp * stencil(4)
+                    + 3.0_wp * stencil(2) &
+                    - 3.0_wp * stencil(3) &
+                    + 1.0_wp * stencil(4)
+      if (ll == 1) then
+        r = vals(I_DENS) + ref%density(k)  !< Total density
+        u = vals(I_UMOM) / r               !< Velocity in x
+        w = vals(I_WMOM) / r               !< Velocity in z
+        t = ( vals(I_RHOT) + ref%denstheta(k) ) / r   !< Temperature
+        p = c0*(r*t)**cdocv !< Equation of state, pressure
+        !> Physical fluxes + dissipation terms
+        flux%dens(i,k) = r*u - hv_coef*d3_vals(I_DENS)
+        flux%umom(i,k) = r*u*u+p - hv_coef*d3_vals(I_UMOM)
+        flux%wmom(i,k) = r*u*w - hv_coef*d3_vals(I_WMOM)
+        flux%rhot(i,k) = r*u*t - hv_coef*d3_vals(I_RHOT)
+      end if
 
-      r = vals(I_DENS) + ref%density(k)  !< Total density
-      u = vals(I_UMOM) / r               !< Velocity in x
-      w = vals(I_WMOM) / r               !< Velocity in z
-      t = ( vals(I_RHOT) + ref%denstheta(k) ) / r   !< Temperature
-      p = c0*(r*t)**cdocv !< Equation of state, pressure
-      !> Physical fluxes + dissipation terms
-      flux%dens(i,k) = r*u - hv_coef*d3_vals(I_DENS)
-      flux%umom(i,k) = r*u*u+p - hv_coef*d3_vals(I_UMOM)
-      flux%wmom(i,k) = r*u*w - hv_coef*d3_vals(I_WMOM)
-      flux%rhot(i,k) = r*u*t - hv_coef*d3_vals(I_RHOT)
-      !> Compute the tendency in x through flux differences
       if (i <= nx) then
         tendency%mem(i,k,ll) = -( flux%mem(i+1,k,ll) - flux%mem(i,k,ll) ) / dx
       end if
-    end if
+    endif
   end subroutine xtend
 
-    !> @brief Computes the atmospheric tendency along z
-    !> param[inout] tendency Atmospheric tendency
-    !> param[inout] flux Atmospheric flux
-    !> param[in] ref Reference atmospheric state
-    !> param[inout] atmostat Atmospheric state
-    !> param[in] dz Vertical cell size
-    !> param[in] dt Time step
   attributes(device) subroutine ztend(tendency,flux,ref,atmostat,dz,dt)
     implicit none
     class(atmospheric_tendency), device, intent(inout) :: tendency
@@ -240,57 +236,47 @@ module module_types_cuda
     real(wp) :: r, u, w, t, p, hv_coef
     real(wp), dimension(STEN_SIZE) :: stencil
     real(wp), dimension(NVARS) :: d3_vals, vals
-
-
-    call atmostat%exchange_halo_z(ref) !< Load the fixed (given by ref) interior values into halos in z
-
-    hv_coef = -hv_beta * dz / (16.0_wp*dt) !< hyperviscosity coeff, normalized for 4th order stencil
-    if ( i >= 1 .and. i <= nx+1 .and. k >= 1 .and. k <= nz_loc) then
+    
+    i = blockIdx%x * blockDim%x + threadIdx%x
+    k = blockIdx%y * blockDim%y + threadIdx%y
+    ll = blockIdx%z * blockDim%z + threadIdx%z
+    
+    call exchange_halo_z_device(atmostat, ref)
+    
+    hv_coef = -hv_beta * dz / (16.0_wp*dt)
+    if (i >= 1 .and. i <= nx.and. k >= 1 .and. k <= nz_loc+1) then
       do s = 1, STEN_SIZE
         stencil(s) = atmostat%mem(i,k-hs-1+s,ll)
       end do
       vals(ll) = - 1.0_wp * stencil(1)/12.0_wp &  !< Compute fluxes with 4th-order scheme
-               + 7.0_wp * stencil(2)/12.0_wp &
-               + 7.0_wp * stencil(3)/12.0_wp &
-               - 1.0_wp * stencil(4)/12.0_wp
+                 + 7.0_wp * stencil(2)/12.0_wp &
+                 + 7.0_wp * stencil(3)/12.0_wp &
+                 - 1.0_wp * stencil(4)/12.0_wp
       d3_vals(ll) = - 1.0_wp * stencil(1) &   !< Numerical dissipation prop to 3rd derivative
-                    + 3.0_wp * stencil(2) & 
+                    + 3.0_wp * stencil(2) &
                     - 3.0_wp * stencil(3) &
                     + 1.0_wp * stencil(4)
-      r = vals(I_DENS) + ref%idens(k)  !< Total density
-      u = vals(I_UMOM) / r             !< Total velocity in x
-      w = vals(I_WMOM) / r             !< Total velocity in z
-      t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
-      p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
-      if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
-        w = 0.0_wp
-        d3_vals(I_DENS) = 0.0_wp
-      end if
-      !> Physical fluxes + dissipation terms
-      flux%dens(i,k) = r*w - hv_coef*d3_vals(I_DENS)
-      flux%umom(i,k) = r*w*u - hv_coef*d3_vals(I_UMOM)
-      flux%wmom(i,k) = r*w*w+p - hv_coef*d3_vals(I_WMOM)
-      flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
-
-      !> Compute the tendency in z through flux differences
-      do j = 1, 4
-        do i = 1, nx
-          k = merge( ks(j), ks(j) - 1 , j < 3)
-          !> Compute the tendency in z through flux differences
-          tendency%mem(i,k,ll) = &
-              -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
-          if (ll == I_WMOM) then
-            tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
-          end if
-        end do
-      end do
-      if ( k <= nz_loc ) then
-        tendency%mem(i,k,ll) = -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
-        if (ll == I_WMOM) then
-            tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
+      if (ll == 1) then
+        r = vals(I_DENS) + ref%idens(k)  !< Total density
+        u = vals(I_UMOM) / r             !< Total velocity in x
+        w = vals(I_WMOM) / r             !< Total velocity in z
+        t = ( vals(I_RHOT) + ref%idenstheta(k) ) / r   !< Temperature
+        p = c0*(r*t)**cdocv - ref%pressure(k)          !< Equation of state, pressure
+        if ((k == 1 .and. rank == 0) .or. (k == nz_loc+1 .and. rank == size - 1)) then
+          w = 0.0_wp
+          d3_vals(I_DENS) = 0.0_wp
         end if
+        !> Physical fluxes + dissipation terms
+        flux%dens(i,k) = r*w - hv_coef*d3_vals(I_DENS)
+        flux%umom(i,k) = r*w*u - hv_coef*d3_vals(I_UMOM)
+        flux%wmom(i,k) = r*w*w+p - hv_coef*d3_vals(I_WMOM)
+        flux%rhot(i,k) = r*w*t - hv_coef*d3_vals(I_RHOT)
       end if
-    end if
+      tendency%mem(i,k,ll) = -( flux%mem(i,k+1,ll) - flux%mem(i,k,ll) ) / dz
+      if (ll == I_WMOM) then
+        tendency%wmom(i,k) = tendency%wmom(i,k) - atmostat%dens(i,k)*grav
+      end if
+    endif
   end subroutine ztend
 
 
@@ -299,95 +285,132 @@ module module_types_cuda
   attributes(device) subroutine exchange_halo_x(s)
     implicit none
     class(atmospheric_state), device, intent(inout) :: s
-    integer :: k, ll
-
-    if ( k <= nz_loc ) then
-        s%mem(-1,k,ll)   = s%mem(nx-1,k,ll)
-        s%mem(0,k,ll)    = s%mem(nx,k,ll)
-        s%mem(nx+1,k,ll) = s%mem(1,k,ll)
-        s%mem(nx+2,k,ll) = s%mem(2,k,ll)
-    end if
+    integer :: i, k, ll
+    
+    i = blockIdx%x * blockDim%x + threadIdx%x - hs
+    k = blockIdx%y * blockDim%y + threadIdx%y
+    ll = blockIdx%z * blockDim%z + threadIdx%z
+    
+    if (k >= 1 .and. k <= nz_loc .and. ll >= 1 .and. ll <= NVARS) then
+      s%mem(-1,k,ll)    = s%mem(nx-1,k,ll)
+      s%mem(0,k,ll)     = s%mem(nx,k,ll)
+      s%mem(nx+1,k,ll) = s%mem(1,k,ll)
+      s%mem(nx+2,k,ll) = s%mem(2,k,ll)
+    endif
   end subroutine exchange_halo_x
 
-    !> @brief Fixed boundary conditions along z (0 velocity at the boundary along z, and velocity given by ref along x)
-    !> @param[inout] s Atmospheric state whose halos should be exchanged
-    !> @param[in] ref Reference state
-    attributes(device) subroutine exchange_halo_z(s,ref)
-        implicit none
-        class(atmospheric_state), device, intent(inout) :: s
-        class(reference_state), device, intent(in) :: ref
-        integer :: i, ll
-        integer(8) :: rate
-        integer :: send_count = 2 * (nx + 2 * hs)
-
-        !PARALLEL COMMUNICATION DONE AT THE BEGINNING
-        call system_clock(t_comm_start)
-        ! SENDRECV DOWNWARDS
-        call MPI_Sendrecv(s%mem(1-hs, 1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-        s%mem(1-hs, -1, ll), send_count, MPI_DOUBLE_PRECISION, prev_rank, 0, &
-        comm, MPI_STATUS_IGNORE, ierr &
-        )
-
-        ! SENDRECV UPWARDS
-        call MPI_Sendrecv(s%mem(1-hs, nz_loc-1, ll), send_count, MPI_DOUBLE_PRECISION, next_rank, 0, &
-        s%mem(1-hs, nz_loc + 1, ll), send_count , MPI_DOUBLE_PRECISION, next_rank, 0, &
-        comm, MPI_STATUS_IGNORE, ierr &
-        )
-        call system_clock(t_comm_end,rate)
-        T_communicate = T_communicate + dble(t_comm_end-t_comm_start)/dble(rate)
-
-
-    !> FIRST BOUNDARY UPDATE
-    if (rank == 0) then
-        if (ll == I_WMOM) then
-          !> Vertical velocities are set to 0
-          s%mem(i,-1,ll) = 0.0_wp
-          s%mem(i,0,ll) = 0.0_wp
-        else if (ll == I_UMOM) then
-          !> Horizontal velocities on z boundaries are scaled depending on ref values
-          s%mem(i,-1,ll)   = s%mem(i,1,ll) /  &
-              ref%density(1) * ref%density(-1)
-          s%mem(i,0,ll)    = s%mem(i,1,ll) /  &
-              ref%density(1) * ref%density(0)
-        else
-          !> Copying interior values into halos
-          s%mem(i,-1,ll) = s%mem(i,1,ll)
-          s%mem(i,0,ll) = s%mem(i,1,ll)
-        end if
-    end if
-
-    !> LAST BOUNDARY UPDATE
-    if (rank == size - 1) then
-        if ( condition ) then
-            
-        end if
-        do i = 1-hs,nx+hs
+  attributes(device) subroutine exchange_halo_z_device(s, ref)
+    implicit none
+    type(atmospheric_state), device, intent(inout) :: s
+    type(reference_state), device, intent(in) :: ref
+    integer :: i, ll
+    
+    i = blockIdx%x * blockDim%x + threadIdx%x
+    
+    if (i >= 1-hs .and. i <= nx+hs) then
+      if (rank == 0) then
+        do ll = 1, NVARS
           if (ll == I_WMOM) then
-            !> Vertical velocities are set to 0
+            s%mem(i,-1,ll) = 0.0_wp
+            s%mem(i,0,ll) = 0.0_wp
+          else if (ll == I_UMOM) then
+            s%mem(i,-1,ll) = s%mem(i,1,ll) / ref%density(1) * ref%density(-1)
+            s%mem(i,0,ll) = s%mem(i,1,ll) / ref%density(1) * ref%density(0)
+          else
+            s%mem(i,-1,ll) = s%mem(i,1,ll)
+            s%mem(i,0,ll) = s%mem(i,1,ll)
+          end if
+        end do
+      endif
+      
+      if (rank == size - 1) then
+        do ll = 1, NVARS
+          if (ll == I_WMOM) then
             s%mem(i,nz_loc+1,ll) = 0.0_wp
             s%mem(i,nz_loc+2,ll) = 0.0_wp
           else if (ll == I_UMOM) then
-            !> Horizontal velocities on z boundaries are scaled depending on ref values
             s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll) / &
-                    ref%density(nz_loc) * ref%density(nz_loc+1)
+                                    ref%density(nz_loc) * ref%density(nz_loc+1)
             s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll) / &
-                    ref%density(nz_loc) * ref%density(nz_loc+2)
+                                    ref%density(nz_loc) * ref%density(nz_loc+2)
           else
-            !> Copying interior values into halos
             s%mem(i,nz_loc+1,ll) = s%mem(i,nz_loc,ll)
             s%mem(i,nz_loc+2,ll) = s%mem(i,nz_loc,ll)
           end if
         end do
+      endif
+    endif
+  end subroutine exchange_halo_z_device
+
+  subroutine exchange_halo_z_mpi(s_host, s_device)
+    use mpi
+    implicit none
+    type(atmospheric_state_host), intent(inout) :: s_host
+    type(atmospheric_state), intent(inout) :: s_device
+
+    integer :: send_count, ierr
+    integer :: i, ll, count
+    integer :: prev_rank, next_rank
+    integer :: mpi_wp
+    integer :: comm_local
+
+    real(wp), allocatable, target, dimension(:) :: send_buffer_down, send_buffer_up
+    real(wp), allocatable, target, dimension(:) :: recv_buffer_down, recv_buffer_up
+
+elem_count = nx + 2*hs
+  send_count_per_var = elem_count
+  send_count = send_count_per_var * NVARS
+
+  ! Allocate host buffers (contiguous)
+  allocate(send_buffer_down(send_count))
+  allocate(send_buffer_up(send_count))
+  allocate(recv_buffer_down(send_count))
+  allocate(recv_buffer_up(send_count))
+
+  ! determine neighbor ranks (use MPI_PROC_NULL at domain boundaries)
+  prev_rank = rank - 1
+  if (prev_rank < 0) prev_rank = MPI_PROC_NULL
+  next_rank = rank + 1
+  if (next_rank > size - 1) next_rank = MPI_PROC_NULL
+
+  ! MPI datatype for real(wp) - use double precision MPI constant
+  mpi_wp = MPI_DOUBLE_PRECISION
+
+  ! compute bytes to copy for one i-line (elem_count elements of real(wp))
+  bytes = elem_count * c_sizeof(send_buffer_down(1))
+
+  ! 1. 从 device 直接拷贝 halo 发出行到 host 发送缓冲区 (Device -> Host)
+  !    我们对每个变量 ll 单独拷贝一条连续的 i-range（在 Fortran 中这是连续内存）
+  do ll = 1, NVARS
+    count = (ll-1)*elem_count + 1
+    call cudaMemcpy(send_buffer_down(count), s_device%mem(1-hs, 1, ll), bytes, cudaMemcpyDeviceToHost)
+    call cudaMemcpy(send_buffer_up(count),   s_device%mem(1-hs, nz_loc, ll), bytes, cudaMemcpyDeviceToHost)
+  end do
+
+    call MPI_Sendrecv(send_buffer_down, send_count, mpi_wp, &
+                      prev_rank, 0, &
+                      recv_buffer_down, send_count, mpi_wp, &
+                      prev_rank, 0, &
+                      comm, MPI_STATUS_IGNORE, ierr)
+
+    call MPI_Sendrecv(send_buffer_up, send_count, mpi_wp, &
+                      next_rank, 0, &
+                      recv_buffer_up, send_count, mpi_wp, &
+                      next_rank, 0, &
+                      comm, MPI_STATUS_IGNORE, ierr)
+
+    do ll = 1, NVARS
+      do j = 1, hs
+        count = (ll-1)*elem_count + 1
+        call cudaMemcpy(s_device%mem(1-hs, j-hs, ll), recv_buffer_down(count), bytes, cudaMemcpyHostToDevice)
+        call cudaMemcpy(s_device%mem(1-hs, nz_loc+j-hs, ll), recv_buffer_up(count), bytes, cudaMemcpyHostToDevice)
       end do
-      !$acc end parallel loop
-      !$omp end parallel do
-    end if
+    end do
+    deallocate(send_buffer_down, send_buffer_up)
+    deallocate(recv_buffer_down, recv_buffer_up)
 
+  end subroutine exchange_halo_z_mpi
 
-      !Sync of ranks
-     ! call MPI_BARRIER(comm, ierr)
-
-  end subroutine exchange_halo_z
 
     !> @brief Instantiates a new reference state
     !> @param[inout] ref New reference state to be allocated memory to
@@ -399,9 +422,6 @@ module module_types_cuda
     allocate(ref%idens(nz_loc+1))
     allocate(ref%idenstheta(nz_loc+1))
     allocate(ref%pressure(nz_loc+1))
-    !$acc enter data copyin(ref)
-    !$acc enter data create(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
-    !$acc enter data attach(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
   end subroutine new_ref
 
     !> @brief Delete existing reference state
@@ -409,9 +429,6 @@ module module_types_cuda
   subroutine del_ref(ref)
     implicit none
     class(reference_state), intent(inout) :: ref
-    !$acc exit data detach(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
-    !$acc exit data delete(ref%density, ref%denstheta, ref%idens, ref%idenstheta, ref%pressure)
-    !$acc exit data delete(ref)
     deallocate(ref%density)
     deallocate(ref%denstheta)
     deallocate(ref%idens)
@@ -430,9 +447,6 @@ module module_types_cuda
     flux%umom => flux%mem(:,:,I_UMOM)
     flux%wmom => flux%mem(:,:,I_WMOM)
     flux%rhot => flux%mem(:,:,I_RHOT)
-    !$acc enter data copyin(flux)
-    !$acc enter data create(flux%mem)
-    !$acc enter data attach(flux%mem)
   end subroutine new_flux
 
     !> @brief Set an existing flux object to a given value
@@ -448,16 +462,8 @@ module module_types_cuda
         write(stderr,*) 'NOT ALLOCATED FLUX ERROR'
         stop
       end if
-
-      !$acc parallel loop collapse(3) present(flux%mem)
-      do ll = 1, NVARS
-        do k = 1, nz_loc+1
-          do i = 1, nx+1
-            flux%mem(i,k,ll) = xval
-          end do
-        end do
-      end do
-      !$acc end parallel loop
+      ! FIX: Use array assignment instead of host loops for device memory
+      flux%mem = xval
     end subroutine set_flux
 
     !> @brief Deallocate an existing flux object
@@ -466,9 +472,6 @@ module module_types_cuda
     implicit none
     class(atmospheric_flux), intent(inout) :: flux
     if ( associated(flux%mem) ) then
-      !$acc exit data detach(flux%mem)
-      !$acc exit data delete(flux%mem)
-      !$acc exit data delete(flux)
       deallocate(flux%mem)
     end if
     nullify(flux%dens)
@@ -488,9 +491,6 @@ module module_types_cuda
     tend%umom => tend%mem(:,:,I_UMOM)
     tend%wmom => tend%mem(:,:,I_WMOM)
     tend%rhot => tend%mem(:,:,I_RHOT)
-    !$acc enter data copyin(tend)
-    !$acc enter data create(tend%mem)
-    !$acc enter data attach(tend%mem)
   end subroutine new_tendency
 
     !> @brief Set an existing tendency object to a given value
@@ -507,15 +507,8 @@ module module_types_cuda
         stop
       end if
 
-      !$acc parallel loop collapse(3) present(tend%mem)
-      do ll = 1, NVARS
-        do k = 1, nz_loc
-          do i = 1, nx
-            tend%mem(i,k,ll) = xval
-          end do
-        end do
-      end do
-      !$acc end parallel loop
+      ! FIX: Use array assignment instead of host loops for device memory
+      tend%mem = xval
     end subroutine set_tendency
 
     !> @brief Deallocate an existing tendency object
@@ -524,9 +517,6 @@ module module_types_cuda
     implicit none
     class(atmospheric_tendency), intent(inout) :: tend
     if ( associated(tend%mem) ) then
-      !$acc exit data detach(tend%mem)
-      !$acc exit data delete(tend%mem)
-      !$acc exit data delete(tend)
       deallocate(tend%mem)
     end if
     nullify(tend%dens)
@@ -542,17 +532,14 @@ module module_types_cuda
       implicit none
       type(atmospheric_state), intent(inout) :: x
       type(atmospheric_state), intent(in) :: y
-      integer :: i, k, ll
-
-      !$acc parallel loop collapse(3) present(x%mem, y%mem)
-      do ll = 1, NVARS
-        do k = 1-hs, nz_loc+hs
-          do i = 1-hs, nx+hs
-            x%mem(i,k,ll) = y%mem(i,k,ll)
-          end do
-        end do
-      end do
-      !$acc end parallel loop
+      
+      ! FIX for NVFORTRAN-S-0519:
+      ! Replaced explicit loops with array assignment.
+      ! CUDA Fortran handles x%mem (device) = y%mem (device) automatically and efficiently.
+      if (associated(x%mem) .and. associated(y%mem)) then
+         x%mem = y%mem
+      end if
+      
     end subroutine state_equal_to_state
 #endif
 end module module_types_cuda
